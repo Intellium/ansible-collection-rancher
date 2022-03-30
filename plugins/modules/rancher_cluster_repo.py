@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Copyright: (c) 2018, Terry Jones <terry.jones@example.org>
+# Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
@@ -107,7 +107,8 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         repo_name=dict(type='str', required=True),
         repo_url=dict(type='str', required=True),
-        full_response=dict(type='bool')
+        full_response=dict(type='bool'),
+        verify_certs=dict(type='bool', default=True)
     )
     
     module = AnsibleModule(
