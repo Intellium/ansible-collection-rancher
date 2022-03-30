@@ -127,6 +127,9 @@ def api_login(module):
     # Make the request
     resp, content = api_req(module, url, body, body_format, method)
 
+    # Set Last response
+    g.last_reponse = resp
+
     # Ensure the API responds correctly
     if resp['status'] not in (200,201):
         if resp['status'] == 401:
