@@ -60,6 +60,11 @@ options:
         description: Whether to return full api response
         required: false
         type: bool
+    validate_certs:
+        description: Verify SSL certificates
+        required: false
+        type: bool
+        default: true
 extends_documentation_fragment:
     - intellium.rancher.my_doc_fragment_name
 
@@ -108,7 +113,7 @@ def main():
         repo_name=dict(type='str', required=True),
         repo_url=dict(type='str', required=True),
         full_response=dict(type='bool'),
-        verify_certs=dict(type='bool', default=True)
+        validate_certs=dict(type='bool', default=True)
     )
     
     module = AnsibleModule(
