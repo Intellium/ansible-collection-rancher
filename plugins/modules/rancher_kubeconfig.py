@@ -9,18 +9,29 @@ __metaclass__ = type
 
 DOCUMENTATION = r'''
 ---
-module: rancher_login
+module: rancher_kubeconfig
 
-short_description: Login with username/password to obtain token
+short_description: Obtain kubeconfig for given cluster
 
-version_added: "0.0.5"
+version_added: "0.0.6"
 
-description: This module does a web login and returns an authentication token
+description: This module allows you to fetch the content of the kubeconfig for\
+     the given rancher cluster
 
 options:
     host:
         description: Hostname of rancher system
         required: true
+        type: str
+
+    cluster_name:
+        description: Name of the cluster in rancher to operate on
+        required: true
+        type: str
+
+    token:
+        description: Token used for authentication
+        required: false
         type: str
 
     username:
@@ -52,23 +63,22 @@ author:
 '''
 
 EXAMPLES = r'''
-# Add repository
-- name: Rancher Login
-  intellium.rancher.rancher_login:
+# Fetch config
+- name: Obtain kubeconfig for test cluster
+  intellium.rancher.rancher_kubeconfig:
     host: rancher.example.com
-    username: admin
-    password: mysecretpassword
+    token: "{{ login_out['token'] }}"
+    cluster_name: test
     full_response: true
     validate_certs: false
-  register: login_out
+  register: kubeconfig_out
 '''
 
 RETURN = r'''
 # These are examples of possible return values,
-# and in general should use other names for return values.
-token:
-    description: Authentication token for the logged in user
-    type: string
+kubeconfig:
+    description: YAML content of the kubeconfig file
+    type: yaml
     returned: always
 full_response:
     description: The full API response of the last request
@@ -78,8 +88,8 @@ full_response:
 
 import json
 
-from ansible.module_utils.basic import AnsibleModule, sanitize_keys
 from ansible.module_utils._text import to_native, to_text
+from ansible.module_utils.basic import AnsibleModule, sanitize_keys
 
 import ansible_collections.intellium.rancher.plugins.module_utils.\
     rancher_globals as g
@@ -91,6 +101,9 @@ def main():
     argument_spec = {}
     argument_spec.update(
         host=dict(type='str', aliases=['rancher_host'], required=True),
+        cluster_name=dict(type='str', aliases=[
+                          'rancher_cluster'], required=True),
+        token=dict(type='str', aliases=['rancher_token'], no_log=True),
         username=dict(type='str', aliases=['rancher_username']),
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         full_response=dict(type='bool'),
@@ -99,17 +112,44 @@ def main():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
+        mutually_exclusive=[
+            ('token', 'username'),
+            ('token', 'password')
+        ],
         required_together=[
             ('username', 'password')
+        ],
+        required_one_of=[
+            ('token', 'username', 'password'),
         ]
     )
 
-    # Fetch token from login
-    g.mod_returns.update(token=api_login(module))
+    # Do we have a token? If not, go and fetch it
+    if not module.params['token']:
+        module.params['token'] = api_login(module)
+
+    # Fetch cluster id
+    cluster_id = clusterid_by_name(module)
+
+    # Set defaults
+    _url = 'https://%s/v3/clusters/%s?action=generateKubeconfig' % (
+        module.params['host'], cluster_id)
+    _body = "{ }"
+
+    # Make the request
+    resp, content = api_req(
+        module,
+        url=_url,
+        body=_body,
+        body_format='json',
+        method='POST',
+        auth=module.params['token']
+    )
 
     # Check status code
     if g.last_response['status'] in (200, 201):
         g.mod_returns.update(changed=False)
+        g.mod_returns.update(kubeconfig=resp['json']['config'])
         api_exit(module)
     else:
         g.mod_returns.update(msg='Unexpected response: '
