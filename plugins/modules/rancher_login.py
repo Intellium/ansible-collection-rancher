@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -10,26 +8,31 @@ __metaclass__ = type
 DOCUMENTATION = r'''
 ---
 module: rancher_login
-
 short_description: Login with username/password to obtain token
-
+description:
+    - This module does a web login and returns an authentication token
 version_added: "0.0.5"
-
-description: This module does a web login and returns an authentication token
+requirements:
+    - "python >= 3.10"
+author:
+    - Wouter Moeken (@intellium)
 
 options:
     host:
         description: Hostname of rancher system
+        aliases: [ rancher_host ]
         required: true
         type: str
 
     username:
         description: Username for user/pass login instead of token
+        aliases: [ rancher_username ]
         required: false
         type: str
 
     password:
         description: Password for user/pass login instead of token
+        aliases: [ rancher_password ]
         required: false
         type: str
 
@@ -43,12 +46,6 @@ options:
         required: false
         type: bool
         default: true
-
-extends_documentation_fragment:
-    - intellium.rancher.my_doc_fragment_name
-
-author:
-    - Wouter Moeken (@intellium)
 '''
 
 EXAMPLES = r'''
@@ -68,11 +65,11 @@ RETURN = r'''
 # and in general should use other names for return values.
 token:
     description: Authentication token for the logged in user
-    type: string
+    type: dict
     returned: always
 full_response:
     description: The full API response of the last request
-    type: json
+    type: dict
     returned: optional
 '''
 

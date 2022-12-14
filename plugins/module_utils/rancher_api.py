@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -22,10 +20,10 @@ from ansible.module_utils.urls import fetch_url, url_argument_spec
 
 
 def api_req(module, url='', body='', body_format='json', method='GET',
-            headers={}, auth=''):
+            headers=None, auth=''):
     kwargs = {}
 
-    if headers == {}:
+    if headers is None:
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
@@ -75,8 +73,9 @@ def api_req(module, url='', body='', body_format='json', method='GET',
         ukey = key.replace("-", "_").lower()
         r[ukey] = value
 
-    if 'location' in r:
-        r['location'] = absolute_location(url, r['location'])
+    # "absolute_location" is not defined
+    # if 'location' in r:
+    #     r['location'] = absolute_location(url, r['location'])
 
     u_content = to_text(
         content, encoding='utf-8') if len(content) > 1 else '{}'

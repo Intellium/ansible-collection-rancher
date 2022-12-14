@@ -1,7 +1,5 @@
-#!/usr/bin/python
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
-global mod_returns
 mod_returns = dict()
-
-global last_reponse
 last_response = {}

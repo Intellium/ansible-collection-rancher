@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -10,37 +8,44 @@ __metaclass__ = type
 DOCUMENTATION = r'''
 ---
 module: rancher_kubeconfig
-
 short_description: Obtain kubeconfig for given cluster
-
-version_added: "0.0.6"
-
-description: This module allows you to fetch the content of the kubeconfig for\
+description:
+    - This module allows you to fetch the content of the kubeconfig for
      the given rancher cluster
+version_added: "0.0.6"
+requirements:
+    - "python >= 3.10"
+author:
+    - Wouter Moeken (@intellium)
 
 options:
-    host:
-        description: Hostname of rancher system
+    cluster_name:
+        description: Name of the cluster in rancher to operate on
+        aliases: [ rancher_cluster ]
         required: true
         type: str
 
-    cluster_name:
-        description: Name of the cluster in rancher to operate on
+    host:
+        description: Hostname of rancher system
+        aliases: [ rancher_host ]
         required: true
         type: str
 
     token:
         description: Token used for authentication
+        aliases: [ rancher_token ]
         required: false
         type: str
 
     username:
         description: Username for user/pass login instead of token
+        aliases: [ rancher_username ]
         required: false
         type: str
 
     password:
         description: Password for user/pass login instead of token
+        aliases: [ rancher_password ]
         required: false
         type: str
 
@@ -54,12 +59,6 @@ options:
         required: false
         type: bool
         default: true
-
-extends_documentation_fragment:
-    - intellium.rancher.my_doc_fragment_name
-
-author:
-    - Wouter Moeken (@intellium)
 '''
 
 EXAMPLES = r'''
@@ -77,12 +76,12 @@ EXAMPLES = r'''
 RETURN = r'''
 # These are examples of possible return values,
 kubeconfig:
-    description: YAML content of the kubeconfig file
-    type: yaml
+    description: content of the kubeconfig file
+    type: dict
     returned: always
 full_response:
     description: The full API response of the last request
-    type: json
+    type: dict
     returned: optional
 '''
 

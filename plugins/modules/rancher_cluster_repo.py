@@ -1,56 +1,66 @@
 #!/usr/bin/python
 
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
-# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+# GNU General Public License v3.0+
+# (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 DOCUMENTATION = r'''
 ---
 module: rancher_cluster_repo
-
 short_description: Manage Rancher Cluster Repositories
-
+description:
+    - This module allows you to manage the lifecycle of Cluster Repositories.
 version_added: "0.0.1"
-
-description: This module allows you to manage the lifecycle of Cluster Repositories.
+requirements:
+    - "python >= 3.10"
+author:
+    - Wouter Moeken (@intellium)
 
 options:
     state:
         description: absent or present
-        required: true
+        choices: ['present', 'absent']
+        default: 'present'
         type: str
-    
-    host:
-        description: Hostname of rancher system
-        required: true
-        type: str
-    
+
     cluster_name:
         description: Name of the cluster in rancher to operate on
+        aliases: [ rancher_cluster ]
         required: true
         type: str
-    
+
+    host:
+        description: Hostname of rancher system
+        aliases: [ rancher_host ]
+        required: true
+        type: str
+
     token:
         description: Token used for authentication
+        aliases: [ rancher_token ]
         required: false
         type: str
-        
+
     username:
         description: Username for user/pass login instead of token
+        aliases: [ rancher_username ]
         required: false
         type: str
-        
+
     password:
         description: Password for user/pass login instead of token
+        aliases: [ rancher_password ]
         required: false
         type: str
-        
+
     repo_name:
         description: Name of repository to operate on
         required: true
         type: str
-        
+
     repo_url:
         description: URL of the repository
         required: true
@@ -60,16 +70,12 @@ options:
         description: Whether to return full api response
         required: false
         type: bool
+
     validate_certs:
         description: Verify SSL certificates
         required: false
         type: bool
         default: true
-extends_documentation_fragment:
-    - intellium.rancher.my_doc_fragment_name
-
-author:
-    - Wouter Moeken (@intellium)
 '''
 
 EXAMPLES = r'''
@@ -84,29 +90,36 @@ EXAMPLES = r'''
     repo_name: "test-repo"
     repo_url: "https://test-repo.example.com"
     full_response: true
+    validate_certs: false
 '''
 
 RETURN = r'''
-# These are examples of possible return values, and in general should use other names for return values.
+# These are examples of possible return values,
+# and in general should use other names for return values.
 full_response:
     description: The full API response of the last request
-    type: json
+    type: dict
     returned: optional
 '''
 
 import json
-import ansible_collections.intellium.rancher.plugins.module_utils.rancher_globals as g
+import ansible_collections.intellium.rancher.plugins.module_utils.\
+    rancher_globals as g
 
 from ansible.module_utils.basic import AnsibleModule, sanitize_keys
 from ansible.module_utils._text import to_native, to_text
-from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api import api_req, clusterid_by_name, api_login, api_exit
+from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
+    import api_req, clusterid_by_name, api_login, api_exit
+
 
 def main():
     argument_spec = {}
     argument_spec.update(
-        state=dict(type='str', choices=['present','absent'], required=True),
+        state=dict(type='str', default="present",
+                   choices=['present', 'absent']),
         host=dict(type='str', aliases=['rancher_host'], required=True),
-        cluster_name=dict(type='str', aliases=['rancher_cluster'], required=True),
+        cluster_name=dict(type='str', aliases=[
+                          'rancher_cluster'], required=True),
         token=dict(type='str', aliases=['rancher_token'], no_log=True),
         username=dict(type='str', aliases=['rancher_username']),
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
@@ -115,18 +128,18 @@ def main():
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
-    
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         mutually_exclusive=[
-            ('token','username'),
-            ('token','password')
+            ('token', 'username'),
+            ('token', 'password')
         ],
         required_together=[
-            ('username','password')
+            ('username', 'password')
         ],
         required_one_of=[
-            ('token','username','password'),
+            ('token', 'username', 'password'),
         ]
     )
 
@@ -138,28 +151,30 @@ def main():
     cluster_id = clusterid_by_name(module)
 
     # Set defaults
-    _url = 'https://%s/k8s/clusters/%s/v1/catalog.cattle.io.clusterrepos' % (module.params['host'], cluster_id)
+    _url = 'https://%s/k8s/clusters/%s/v1/catalog.cattle.io.clusterrepos' % (
+        module.params['host'], cluster_id)
     _body = json.dumps(
         {
-            "type":"catalog.cattle.io.clusterrepo",
+            "type": "catalog.cattle.io.clusterrepo",
             "metadata": {
-                "name":module.params['repo_name']
+                "name": module.params['repo_name']
             },
             "spec": {
-                "url":module.params['repo_url']
+                "url": module.params['repo_url']
             }
-        }, 
+        },
         sort_keys=True
     )
 
     # Get current repo if it exists
     ccr, content = api_req(
         module,
-        url = 'https://%s/k8s/clusters/%s/v1/catalog.cattle.io.clusterrepos/%s' % (module.params['host'], cluster_id, module.params['repo_name']),
-        method = 'GET',
-        auth = module.params['token']
+        url='https://%s/k8s/clusters/%s/v1/catalog.cattle.io.clusterrepos/%s'
+            % (module.params['host'], cluster_id, module.params['repo_name']),
+        method='GET',
+        auth=module.params['token']
     )
-    if ccr['status'] in (200,201):
+    if ccr['status'] in (200, 201):
         # Repo by this name exists, check if we need to update anything
         if ccr['json']['spec']['url'] != module.params['repo_url']:
             _action = 'PUT'
@@ -186,26 +201,35 @@ def main():
     # Make the request
     resp, content = api_req(
         module,
-        url = _url,
-        body = _body,
-        body_format = 'json',
-        method = _action if _action else 'POST',
-        auth = module.params['token']
+        url=_url,
+        body=_body,
+        body_format='json',
+        method=_action if _action else 'POST',
+        auth=module.params['token']
     )
 
     # Check status code
-    if resp['status'] == 401:
-        g.mod_returns.update(msg='Authentication failed. Check username / password / token')
-        api_exit(module,'fail')
-    elif resp['status'] == 409:
-        g.mod_returns.update(msg='Trying to create object that already exists.')
-        api_exit(module,'fail')
-    elif resp['status'] == 201 or resp['status'] == 200 or resp['status'] == 204:
+    if g.last_response['status'] in (200, 201, 202):
         g.mod_returns.update(changed=True)
         api_exit(module)
+    elif g.last_response['status'] == 403:
+        g.mod_returns.update(
+            msg='The authenticated user is not allowed access to the \
+                requested resource. Check username / password ')
+        api_exit(module, 'fail')
+    elif g.last_response['status'] == 404:
+        g.mod_returns.update(
+            msg='The requested resource is not found')
+        api_exit(module, 'fail')
+    elif g.last_response['status'] == 409:
+        g.mod_returns.update(
+            msg='Trying to create object that exists.')
+        api_exit(module, 'fail')
     else:
-        g.mod_returns.update(msg='Unexpected status code: ' + to_text(g.last_response['status']))
-        api_exit(module,'fail')
+        g.mod_returns.update(msg='Unexpected response: '
+                             + to_text(g.last_response))
+        api_exit(module, 'fail')
+
 
 if __name__ == '__main__':
     main()

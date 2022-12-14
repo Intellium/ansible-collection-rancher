@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -10,42 +8,44 @@ __metaclass__ = type
 DOCUMENTATION = r'''
 ---
 module: rancher_cloud_credential
-
 short_description: Manage Rancher Cloud Credentials
-
-version_added: "0.0.2"
-
 description:
     - This module allows you to manage the lifecycle of Cluster Repositories.
+version_added: "0.0.2"
+requirements:
+    - "python >= 3.10"
+author:
+    - Wouter Moeken (@intellium)
+    - Cees Moerkerken (@ceesios)
 
 options:
     state:
         description: absent or present
-        required: true
+        choices: ['present', 'absent']
+        default: 'present'
         type: str
 
     host:
         description: Hostname of rancher system
-        required: true
-        type: str
-
-    cluster_name:
-        description: Name of the cluster in rancher to operate on
+        aliases: [ rancher_host ]
         required: true
         type: str
 
     token:
         description: Token used for authentication
+        aliases: [ rancher_token ]
         required: false
         type: str
 
     username:
         description: Username for user/pass login instead of token
+        aliases: [ rancher_username ]
         required: false
         type: str
 
     password:
         description: Password for user/pass login instead of token
+        aliases: [ rancher_password ]
         required: false
         type: str
 
@@ -53,7 +53,6 @@ options:
         description: Cloud Credential to create in Rancher
         required: true
         type: dict
-        default: []
         suboptions:
             name:
                 description: Name of the credential
@@ -62,7 +61,6 @@ options:
 
             type:
                 description: Type of credential
-                required: true
                 default: vsphere
                 type: str
                 choices:
@@ -96,7 +94,7 @@ options:
             port:
                 description:
                     - vSphere Port number for vCenter
-                default: 443
+                default: "443"
                 type: str
 
             region:
@@ -184,13 +182,6 @@ options:
         required: false
         type: bool
         default: true
-
-extends_documentation_fragment:
-    - intellium.rancher.my_doc_fragment_name
-
-author:
-    - Wouter Moeken (@intellium)
-    - Cees Moerkerken (@ceesios)
 '''
 
 EXAMPLES = r'''
@@ -215,7 +206,7 @@ RETURN = r'''
 # and in general should use other names for return values.
 full_response:
     description: The full API response of the last request
-    type: json
+    type: dict
     returned: optional
 '''
 
@@ -332,12 +323,13 @@ def build_body(module):
 def main():
     argument_spec = {}
     argument_spec.update(
-        state=dict(type='str', choices=['present', 'absent'], required=True),
+        state=dict(type='str', default="present",
+                   choices=['present', 'absent']),
         host=dict(type='str', aliases=['rancher_host'], required=True),
         token=dict(type='str', aliases=['rancher_token'], no_log=True),
         username=dict(type='str', aliases=['rancher_username']),
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
-        credential=dict(type='dict'),
+        credential=dict(type='dict', required=True),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
@@ -364,17 +356,6 @@ def main():
     # Set defaults
     _action = 'POST'
     _url = 'https://%s/v3/cloudcredentials' % (module.params['host'])
-    # _body = {
-    #         "type": "cloudcredential",
-    #         "name":module.params['credential']['name'],
-    #         "vmwarevspherecredentialConfig": {
-    #             "vcenter":module.params['credential']['host'],
-    #             "vcenterPort":module.params['credential']['port'],
-    #             "username":module.params['credential']['username'],
-    #             "password":module.params['credential']['password']
-    #         }
-    #     }
-
     _body = build_body(module)
 
     # Get current cc if it exists
@@ -403,10 +384,11 @@ def main():
         ccr_pw = ccp['json']['data']['vmwarevspherecredentialConfig-password']
 
         if (
-            ccr_data['username'] != module.params['credential']['username'] or
-            ccr_data['vcenter'] != module.params['credential']['host'] or
-            ccr_data['vcenterPort'] != module.params['credential']['port'] or
-            to_text(base64.b64decode(ccr_pw)) != module.params['credential']['password']
+            ccr_data['username'] != module.params['credential']['username']
+            or ccr_data['vcenter'] != module.params['credential']['host']
+            or ccr_data['vcenterPort'] != module.params['credential']['port']
+            or to_text(base64.b64decode(ccr_pw))
+                != module.params['credential']['password']
         ):
             _action = 'PUT'
             _tmpbody = ccr['json']['data'][0]
