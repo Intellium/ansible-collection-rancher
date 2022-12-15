@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -215,6 +217,8 @@ import base64
 
 from ansible.module_utils.basic import AnsibleModule, sanitize_keys
 from ansible.module_utils._text import to_native, to_text
+from ansible.module_utils.common.dict_transformations \
+    import recursive_diff, dict_merge
 
 import ansible_collections.intellium.rancher.plugins.module_utils.\
     rancher_globals as g
@@ -222,7 +226,7 @@ from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
     import api_req, clusterid_by_name, api_login, api_exit
 
 
-def build_body(module):
+def credential_object(module):
     credential = module.params['credential']
     if credential['type'] == "vsphere":
         body = {
@@ -235,7 +239,7 @@ def build_body(module):
                 "password": credential['password']
             }
         }
-        return body
+        return {"body": body, "type": 'vmwarevspherecredentialConfig'}
     elif credential['type'] == "ec2":
         body = {
             "type": "cloudcredential",
@@ -246,7 +250,7 @@ def build_body(module):
                 "secretkey": credential['secretkey']
             }
         }
-        return body
+        return {"body": body, "type": 'amazonec2credentialconfig'}
     elif credential['type'] == "azure":
         body = {
             "type": "cloudcredential",
@@ -259,7 +263,7 @@ def build_body(module):
                 "tenantid": credential['tenantid']
             }
         }
-        return body
+        return {"body": body, "type": 'azurecredentialconfig'}
     elif credential['type'] == "digitalocean":
         body = {
             "type": "cloudcredential",
@@ -268,7 +272,7 @@ def build_body(module):
                 "accesstoken": credential['accesstoken']
             }
         }
-        return body
+        return {"body": body, "type": 'digitaloceancredentialconfig'}
     elif credential['type'] == "google":
         body = {
             "type": "cloudcredential",
@@ -277,7 +281,7 @@ def build_body(module):
                 "authencodedjson": credential['authencodedjson']
             }
         }
-        return body
+        return {"body": body, "type": 'googlecredentialconfig'}
     elif credential['type'] == "harvester":
         body = {
             "type": "cloudcredential",
@@ -288,7 +292,7 @@ def build_body(module):
                 "kubeconfigcontent": credential['kubeconfigcontent']
             }
         }
-        return body
+        return {"body": body, "type": 'harvestercredentialconfig'}
     elif credential['type'] == "linode":
         body = {
             "type": "cloudcredential",
@@ -297,7 +301,7 @@ def build_body(module):
                 "token": credential['accesstoken']
             }
         }
-        return body
+        return {"body": body, "type": 'linodecredentialconfig'}
     elif credential['type'] == "s3":
         body = {
             "type": "cloudcredential",
@@ -313,7 +317,7 @@ def build_body(module):
                 "defaultskipsslverify": credential['skipsslverify']
             }
         }
-        return body
+        return {"body": body, "type": 's3'}
     else:
         g.mod_returns.update(changed=False, msg=credential['type']
                              + ' credential type not supported')
@@ -336,7 +340,7 @@ def main():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        # supports_check_mode=True,
+        supports_check_mode=True,
         mutually_exclusive=[
             ('token', 'username'),
             ('token', 'password')
@@ -354,9 +358,9 @@ def main():
         module.params['token'] = api_login(module)
 
     # Set defaults
-    _action = 'POST'
+    _action = None
     _url = 'https://%s/v3/cloudcredentials' % (module.params['host'])
-    _body = build_body(module)
+    ccparams = credential_object(module)
 
     # Get current cc if it exists
     ccr, content = api_req(
@@ -366,11 +370,12 @@ def main():
         method='GET',
         auth=module.params['token']
     )
-    if ccr['status'] in (200, 201) and len(ccr['json']['data']) > 0:
-        # CC by this name exists
 
-        # Fetch password
-        ccp, content = api_req(
+    # check if CC by this name exists
+    if ccr['status'] in (200, 201) and len(ccr['json']['data']) > 0:
+
+        # Get secret
+        sr, content = api_req(
             module,
             url='https://%s/v1/secrets/%s' % (
                 module.params['host'],
@@ -379,28 +384,24 @@ def main():
             auth=module.params['token']
         )
 
-        # set ccr_data & ccr_pw
-        ccr_data = ccr['json']['data'][0]['vmwarevspherecredentialConfig']
-        ccr_pw = ccp['json']['data']['vmwarevspherecredentialConfig-password']
+        sr_data = sr['json']['data']
 
-        if (
-            ccr_data['username'] != module.params['credential']['username']
-            or ccr_data['vcenter'] != module.params['credential']['host']
-            or ccr_data['vcenterPort'] != module.params['credential']['port']
-            or to_text(base64.b64decode(ccr_pw))
-                != module.params['credential']['password']
-        ):
+        if sr['status'] in (200, 201) and len(sr['json']['data']) > 0:
+            for key in list(sr_data):
+                k_new = key.replace(
+                    ccparams['type'] + '-', '')
+                sr_data[k_new] = to_text(base64.b64decode(sr_data.pop(key)))
+
+        # Merge config found in secret and in cloudconfig and diff
+        cclive = dict_merge(
+            ccr['json']['data'][0][ccparams['type']],
+            sr_data)
+        diff = recursive_diff(cclive, ccparams['body'][ccparams['type']])
+
+        if diff is not None:
+            g.mod_returns.update(changed=True)
             _action = 'PUT'
-            _tmpbody = ccr['json']['data'][0]
-            _tmpbody['vmwarevspherecredentialConfig']['username'] = \
-                module.params['credential']['username']
-            _tmpbody['vmwarevspherecredentialConfig']['vcenter'] = \
-                module.params['credential']['host']
-            _tmpbody['vmwarevspherecredentialConfig']['vcenterPort'] = \
-                module.params['credential']['port']
-            _tmpbody['vmwarevspherecredentialConfig']['password'] = \
-                module.params['credential']['password']
-            _body = _tmpbody
+            _body = ccparams['body']
             _url = 'https://%s/v3/cloudCredentials/%s' % (
                 module.params['host'], ccr['json']['data'][0]['id'])
         else:
@@ -409,6 +410,7 @@ def main():
                 g.mod_returns.update(changed=False)
                 api_exit(module)
             elif module.params['state'] == 'absent':
+                g.mod_returns.update(changed=True)
                 _action = 'DELETE'
                 _url = 'https://%s/v3/cloudCredentials/%s' % (
                     module.params['host'], ccr['json']['data'][0]['id'])
@@ -419,6 +421,8 @@ def main():
             g.mod_returns.update(changed=False)
             api_exit(module)
         elif module.params['state'] == 'present':
+            g.mod_returns.update(changed=True)
+            diff = recursive_diff({}, ccparams['body'][ccparams['type']])
             _action = 'POST'
     else:
         # Something went wrong
@@ -427,37 +431,47 @@ def main():
                                + ccr['status'] + ' from API')
         api_exit(module, 'fail')
 
-    # Make the request
-    resp, content = api_req(
-        module,
-        url=_url,
-        body=json.dumps(_body, sort_keys=True),
-        body_format='json',
-        method=_action,
-        auth=module.params['token']
-    )
+    # Detremine if we need to change something
+    if module._diff:
+        g.mod_returns.update(diff=diff)
 
-    # Check status code
-    if g.last_response['status'] in (200, 201, 202):
-        g.mod_returns.update(changed=True)
+    if module.check_mode:
         api_exit(module)
-    elif g.last_response['status'] == 403:
-        g.mod_returns.update(
-            msg='The authenticated user is not allowed access to the \
-                requested resource. Check username / password ')
-        api_exit(module, 'fail')
-    elif g.last_response['status'] == 404:
-        g.mod_returns.update(
-            msg='The requested resource is not found')
-        api_exit(module, 'fail')
-    elif g.last_response['status'] == 409:
-        g.mod_returns.update(
-            msg='Trying to create object that exists.')
-        api_exit(module, 'fail')
+
+    elif _action is not None:
+        # Make the request
+        resp, content = api_req(
+            module,
+            url=_url,
+            body=json.dumps(_body, sort_keys=True),
+            body_format='json',
+            method=_action,
+            auth=module.params['token']
+        )
+
+        # Check status code
+        if g.last_response['status'] in (200, 201, 202):
+            g.mod_returns.update(changed=True)
+            api_exit(module)
+        elif g.last_response['status'] == 403:
+            g.mod_returns.update(
+                msg='The authenticated user is not allowed access to the \
+                    requested resource. Check username / password ')
+            api_exit(module, 'fail')
+        elif g.last_response['status'] == 404:
+            g.mod_returns.update(
+                msg='The requested resource is not found')
+            api_exit(module, 'fail')
+        elif g.last_response['status'] == 409:
+            g.mod_returns.update(
+                msg='Trying to create object that exists.')
+            api_exit(module, 'fail')
+        else:
+            g.mod_returns.update(msg='Unexpected response: '
+                                 + to_text(g.last_response))
+            api_exit(module, 'fail')
     else:
-        g.mod_returns.update(msg='Unexpected response: '
-                             + to_text(g.last_response))
-        api_exit(module, 'fail')
+        api_exit(module)
 
 
 if __name__ == '__main__':

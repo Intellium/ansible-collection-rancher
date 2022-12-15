@@ -1,4 +1,4 @@
-#!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+
@@ -107,6 +107,7 @@ import ansible_collections.intellium.rancher.plugins.module_utils.\
     rancher_globals as g
 
 from ansible.module_utils.basic import AnsibleModule, sanitize_keys
+from ansible.module_utils.common.dict_transformations import recursive_diff
 from ansible.module_utils._text import to_native, to_text
 from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
     import api_req, clusterid_by_name, api_login, api_exit

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Copyright: (c) 2022, Wouter Moeken <wouter.moeken@rws.nl>
 # GNU General Public License v3.0+
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -96,6 +98,7 @@ def main():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
+        supports_check_mode=True,
         required_together=[
             ('username', 'password')
         ]
