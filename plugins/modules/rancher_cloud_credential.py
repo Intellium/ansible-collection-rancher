@@ -51,31 +51,33 @@ options:
         required: false
         type: str
 
+    name:
+        description: Name of the credential
+        required: true
+        type: str
+
+    credential_type:
+        description: Type of credential
+        default: vsphere
+        type: str
+        choices:
+            - 'vsphere'
+            - 'ec2'
+            - 'azure'
+            - 'digitalocean'
+            - 'google'
+            - 'harvester'
+            - 'linode'
+            - 's3'
+
     credential:
-        description: Cloud Credential to create in Rancher
+        description:
+            - Cloud Credential to create in Rancher
+            - Suboptions must be capitilazed correctly!
         required: true
         type: dict
         suboptions:
-            name:
-                description: Name of the credential
-                required: true
-                type: str
-
-            type:
-                description: Type of credential
-                default: vsphere
-                type: str
-                choices:
-                    - 'vsphere'
-                    - 'ec2'
-                    - 'azure'
-                    - 'digitalocean'
-                    - 'google'
-                    - 'harvester'
-                    - 'linode'
-                    - 's3'
-
-            host:
+            vcenter:
                 description:
                     - vSphere IP/hostname for vCenter
                     - Required when type=vsphere
@@ -93,82 +95,88 @@ options:
                     - Required when type=vsphere
                 type: str
 
-            port:
+            vcenterPort:
                 description:
                     - vSphere Port number for vCenter
                 default: "443"
                 type: str
 
-            region:
+            defaultRegion:
                 description:
                     - S3 / AWS EC2 Region
                 required: false
                 default: ""
                 type: str
 
-            accesskey:
+            accessKey:
                 description:
                     - S3 / AWS EC2 Access Key
                     - Required when type=ec2 or s3
                 type: str
 
-            secretkey:
+            secretKey:
                 description:
                     - S3 / AWS EC2 Secret Key
                     - Required when type=ec2 or s3
                 type: str
 
-            bucket:
+            defaultBucket:
                 description:
                     - S3 bucket
                     - Required when type=s3
                 type: str
 
-            endpoint:
+            defaultEndpoint:
                 description:
                     - S3 endpoint
                 type: str
 
-            endpointca:
+            defaultEndpointCA:
                 description:
                     - S3 endpointca
                 type: str
 
-            folder:
+            defaultFolder:
                 description:
                     - S3 folder
                 type: str
 
-            skipsslverify:
+            defaultSkipSSLVerify:
                 description:
                     - S3 skipsslverify
                 type: str
 
-            accesstoken:
+            accessToken:
                 description:
-                    - Digital Ocean / Linode API access token
-                    - Required when type=digitalocean or type=linode
+                    - Digital Ocean API access token
+                    - Required when type=digitalocean
                 type: str
 
-            authencodedjson:
+            token:
+                description:
+                    - Linode API access token
+                    - Required when type=linode
+                type: str
+
+            authEncodedJson:
                 description:
                     - File contents for authEncodedJson
                     - Required when type=google
                 type: str
 
-            clusterid:
+            clusterId:
                 description:
                     - harvester cluster id
                     - Required when type=harvester
                 type: str
 
-            clustertype:
+            clusterType:
                 description:
                     - harvester cluster type
                     - Required when type=harvester
                 type: str
 
-            kubeconfigcontent:
+            kubeconfigContent:
                 description:
                     - contents of kubeconfig file for harvester cluster, base64
                     - Required when type=harvester
@@ -227,101 +235,40 @@ from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
 
 
 def credential_object(module):
-    credential = module.params['credential']
-    if credential['type'] == "vsphere":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "vmwarevspherecredentialConfig": {
-                "vcenter": credential['host'],
-                "vcenterPort": credential['port'],
-                "username": credential['username'],
-                "password": credential['password']
-            }
-        }
-        return {"body": body, "type": 'vmwarevspherecredentialConfig'}
-    elif credential['type'] == "ec2":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "amazonec2credentialconfig": {
-                "accesskey": credential['accesskey'],
-                "defaultregion": credential['region'],
-                "secretkey": credential['secretkey']
-            }
-        }
-        return {"body": body, "type": 'amazonec2credentialconfig'}
-    elif credential['type'] == "azure":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "azurecredentialconfig": {
-                "clientid": credential['clientid'],
-                "clientsecret": credential['clientsecret'],
-                "environment": credential['environment'],
-                "subscriptionid": credential['subscriptionid'],
-                "tenantid": credential['tenantid']
-            }
-        }
-        return {"body": body, "type": 'azurecredentialconfig'}
-    elif credential['type'] == "digitalocean":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "digitaloceancredentialconfig": {
-                "accesstoken": credential['accesstoken']
-            }
-        }
-        return {"body": body, "type": 'digitaloceancredentialconfig'}
-    elif credential['type'] == "google":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "googlecredentialconfig": {
-                "authencodedjson": credential['authencodedjson']
-            }
-        }
-        return {"body": body, "type": 'googlecredentialconfig'}
-    elif credential['type'] == "harvester":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "harvestercredentialconfig": {
-                "clusterid": credential['clusterid'],
-                "clustertype": credential['clustertype'],
-                "kubeconfigcontent": credential['kubeconfigcontent']
-            }
-        }
-        return {"body": body, "type": 'harvestercredentialconfig'}
-    elif credential['type'] == "linode":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "linodecredentialconfig": {
-                "token": credential['accesstoken']
-            }
-        }
-        return {"body": body, "type": 'linodecredentialconfig'}
-    elif credential['type'] == "s3":
-        body = {
-            "type": "cloudcredential",
-            "name": credential['name'],
-            "s3credentialconfig": {
-                "accesskey": credential['accesskey'],
-                "secretkey": credential['secretkey'],
-                "defaultbucket": credential['bucket'],
-                "defaultendpoint": credential['endpoint'],
-                "defaultendpointca": credential['endpointca'],
-                "defaultfolder": credential['folder'],
-                "defaultregion": credential['region'],
-                "defaultskipsslverify": credential['skipsslverify']
-            }
-        }
-        return {"body": body, "type": 's3'}
+    # credential = module.params['credential']
+    if module.params['credential_type'] == "vsphere":
+        typename = "vmwarevspherecredentialConfig"
+    elif module.params['credential_type'] == "ec2":
+        typename = "amazonec2credentialConfig"
+    elif module.params['credential_type'] == "azure":
+        typename = "azurecredentialConfig"
+    elif module.params['credential_type'] == "digitalocean":
+        typename = "digitaloceancredentialConfig"
+    elif module.params['credential_type'] == "google":
+        typename = "googlecredentialConfig"
+    elif module.params['credential_type'] == "harvester":
+        typename = "harvestercredentialConfig"
+    elif module.params['credential_type'] == "linode":
+        typename = "linodecredentialConfig"
+    elif module.params['credential_type'] == "s3":
+        typename = "s3credentialConfig"
     else:
-        g.mod_returns.update(changed=False, msg=credential['type']
+        g.mod_returns.update(changed=False, msg=module.params['credential_type']
                              + ' credential type not supported')
         api_exit(module, 'fail')
+
+    body = {
+        "type": "cloudcredential",
+        "name": module.params['name']
+    }
+
+    configitems = {}
+    for item in module.params['credential']:
+        configitems.update({item: module.params['credential'][item]})
+
+    body.update({typename: configitems})
+
+    return {"body": body, "type": typename}
 
 
 def main():
@@ -333,7 +280,9 @@ def main():
         token=dict(type='str', aliases=['rancher_token'], no_log=True),
         username=dict(type='str', aliases=['rancher_username']),
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
+        name=dict(type='str', required=True),
         credential=dict(type='dict', required=True),
+        credential_type=dict(type='str', required=True),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
@@ -366,39 +315,56 @@ def main():
     ccr, content = api_req(
         module,
         url='https://%s/v3/cloudCredentials/?name=%s' % (
-            module.params['host'], module.params['credential']['name']),
+            module.params['host'], module.params['name']),
         method='GET',
         auth=module.params['token']
     )
 
     # check if CC by this name exists
     if ccr['status'] in (200, 201) and len(ccr['json']['data']) > 0:
+        # Check the type
+        if ccparams['type'] in ccr['json']['data'][0]:
+            # Get secret
+            sr, content = api_req(
+                module,
+                url='https://%s/v1/secrets/%s' % (
+                    module.params['host'],
+                    ccr['json']['data'][0]['id'].replace(':', '/')),
+                method='GET',
+                auth=module.params['token']
+            )
 
-        # Get secret
-        sr, content = api_req(
-            module,
-            url='https://%s/v1/secrets/%s' % (
-                module.params['host'],
-                ccr['json']['data'][0]['id'].replace(':', '/')),
-            method='GET',
-            auth=module.params['token']
-        )
+            sr_data = sr['json']['data']
 
-        sr_data = sr['json']['data']
+            if sr['status'] in (200, 201) and len(sr['json']['data']) > 0:
+                for key in list(sr_data):
+                    k_new = key.replace(
+                        ccparams['type'] + '-', '')
+                    sr_data[k_new] = to_text(base64.b64decode(sr_data.pop(key)))
 
-        if sr['status'] in (200, 201) and len(sr['json']['data']) > 0:
-            for key in list(sr_data):
-                k_new = key.replace(
-                    ccparams['type'] + '-', '')
-                sr_data[k_new] = to_text(base64.b64decode(sr_data.pop(key)))
+            # Merge config found in secret and in cloudconfig and diff
+            cclive_config = dict_merge(
+                ccr['json']['data'][0][ccparams['type']],
+                sr_data)
 
-        # Merge config found in secret and in cloudconfig and diff
-        cclive = dict_merge(
-            ccr['json']['data'][0][ccparams['type']],
-            sr_data)
-        diff = recursive_diff(cclive, ccparams['body'][ccparams['type']])
+            cclive = {
+                "name": ccr['json']['data'][0]['name'],
+                ccparams['type']: cclive_config
+            }
+        else:
+            # Something went wrong
+            g.mod_returns.update(
+                changed=False, msg='Changing secret type is not supported')
+            api_exit(module, 'fail')
 
-        if diff is not None:
+        ccconfig = {
+            "name": module.params['name'],
+            ccparams['type']: module.params['credential']
+        }
+
+        diff_result = recursive_diff(cclive, ccconfig)
+
+        if diff_result is not None:
             g.mod_returns.update(changed=True)
             _action = 'PUT'
             _body = ccparams['body']
@@ -422,25 +388,26 @@ def main():
             api_exit(module)
         elif module.params['state'] == 'present':
             g.mod_returns.update(changed=True)
-            diff = recursive_diff({}, ccparams['body'][ccparams['type']])
+            diff_result = recursive_diff({}, ccparams['body'][ccparams['type']])
             _action = 'POST'
+            _body = ccparams['body']
     else:
         # Something went wrong
         g.mod_returns.update(
-            changed=False, msg='Something went wrong. Received status code '
-                               + ccr['status'] + ' from API')
+            changed=False, msg='Something went wrong. Unexpected response: '
+                               + to_text(g.last_response))
         api_exit(module, 'fail')
 
     # Detremine if we need to change something
     if module._diff:
-        g.mod_returns.update(diff=diff)
+        g.mod_returns.update(diff=diff_result)
 
     if module.check_mode:
         api_exit(module)
 
     elif _action is not None:
         # Make the request
-        resp, content = api_req(
+        action_req, content = api_req(
             module,
             url=_url,
             body=json.dumps(_body, sort_keys=True),
@@ -449,26 +416,29 @@ def main():
             auth=module.params['token']
         )
 
+        # g.mod_returns.update(msg=to_text(_body))
+        # api_exit(module, 'fail')
+
         # Check status code
-        if g.last_response['status'] in (200, 201, 202):
+        if action_req['status'] in (200, 201, 202):
             g.mod_returns.update(changed=True)
             api_exit(module)
-        elif g.last_response['status'] == 403:
+        elif action_req['status'] == 403:
             g.mod_returns.update(
                 msg='The authenticated user is not allowed access to the \
                     requested resource. Check username / password ')
             api_exit(module, 'fail')
-        elif g.last_response['status'] == 404:
+        elif action_req['status'] == 404:
             g.mod_returns.update(
                 msg='The requested resource is not found')
             api_exit(module, 'fail')
-        elif g.last_response['status'] == 409:
+        elif action_req['status'] == 409:
             g.mod_returns.update(
                 msg='Trying to create object that exists.')
             api_exit(module, 'fail')
         else:
             g.mod_returns.update(msg='Unexpected response: '
-                                 + to_text(g.last_response))
+                                 + to_text(action_req))
             api_exit(module, 'fail')
     else:
         api_exit(module)
