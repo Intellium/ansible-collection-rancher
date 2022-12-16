@@ -197,18 +197,20 @@ options:
 EXAMPLES = r'''
 # Add repository
 - name: Test create cc
-  intellium.rancher.rancher_cloud_credential:
-    state: present
-    host: rancher.example.com
+    intellium.rancher.rancher_cloud_credential:
+    host: "{{ rancher_host }}"
     token: "{{ login_out['token'] }}"
-    cred_name: "mycred"
-    cred_host: "vcenter.example.com"
-    cred_username: "myuser"
-    cred_password: "mysecretpass"
-    cred_port: 443
-    cred_type: "vsphere"
-    full_response: true
-    validate_certs: false
+    name: "mycred"
+    credential_type: vsphere
+    credential:
+        vcenter: "vcenter.example.com"
+        username: "myuser"
+        password: "mysecretpass"
+        vcenterPort: "443"
+    validate_certs: true
+    full_response: "{{ full_response }}"
+    register: cc
+
 '''
 
 RETURN = r'''
@@ -309,33 +311,33 @@ def main():
     if not module.params['token']:
         module.params['token'] = api_login(module)
 
-    # Set defaults
+    # Set defaults (_ = internal use and may change)
     _action = None
-    _url = 'https://%s/v3/cloudcredentials' % (module.params['host'])
+    api_path = "v3/cloudcredentials"
+    baseurl = f"https://{module.params['host']}/{api_path}"
+    _url = baseurl
+    _before = {}
     ccparams = credential_object(module)
     cctype = ccparams['type']
-    after = ccparams['body']
-    before = {}
+    _after = ccparams['body']
 
     # Get current cc if it exists
     ccr, content = api_req(
         module,
-        url='https://%s/v3/cloudCredentials/?name=%s' % (
-            module.params['host'], module.params['name']),
+        url=f"{baseurl}/?name={module.params['name']}",
         method='GET',
         auth=module.params['token']
     )
 
     # check if CC by this name exists
     if ccr['status'] in (200, 201) and len(ccr['json']['data']) > 0:
-
+        # CC exists
         if module.params['state'] == 'absent':
             g.mod_returns.update(changed=True)
             _action = 'DELETE'
-            _url = 'https://%s/v3/cloudCredentials/%s' % (
-                module.params['host'], ccr['json']['data'][0]['id'])
-            before = ccr['json']['data'][0]
-            after = {}
+            _url = f"{baseurl}/{ccr['json']['data'][0]['id']}"
+            _before = ccr['json']['data'][0]
+            _after = {}
 
         else:
             # Check the type
@@ -349,7 +351,6 @@ def main():
                     method='GET',
                     auth=module.params['token']
                 )
-
                 sr_data = sr['json']['data']
 
                 if sr['status'] in (200, 201) and len(sr['json']['data']) > 0:
@@ -364,7 +365,7 @@ def main():
                     ccr['json']['data'][0][cctype],
                     sr_data)
 
-                before = {
+                _before = {
                     "name": ccr['json']['data'][0]['name'],
                     "type": "cloudcredential",
                     cctype: cclive_config
@@ -375,13 +376,12 @@ def main():
                     changed=False, msg='Changing secret type is not supported')
                 api_exit(module, 'fail')
 
-            diff_result = recursive_diff(before, after)
+            diff_result = recursive_diff(_before, _after)
 
             if diff_result is not None:
                 g.mod_returns.update(changed=True)
                 _action = 'PUT'
-                _url = 'https://%s/v3/cloudCredentials/%s' % (
-                    module.params['host'], ccr['json']['data'][0]['id'])
+                _url = f"{baseurl}/{ccr['json']['data'][0]['id']}"
 
     elif ccr['status'] in (200, 201) and len(ccr['json']['data']) < 1:
         # CC doesn't exist
@@ -390,8 +390,8 @@ def main():
             api_exit(module)
         elif module.params['state'] == 'present':
             g.mod_returns.update(changed=True)
-            diff_result = recursive_diff({}, after[cctype])
             _action = 'POST'
+
     else:
         # Something went wrong
         g.mod_returns.update(
@@ -400,8 +400,7 @@ def main():
         api_exit(module, 'fail')
 
     if module._diff:
-        g.mod_returns.update(diff=dict(before=before,
-                                       after=after))
+        g.mod_returns.update(diff=dict(before=_before, after=_after))
 
     if module.check_mode:
         api_exit(module)
@@ -411,7 +410,7 @@ def main():
         action_req, content = api_req(
             module,
             url=_url,
-            body=json.dumps(after, sort_keys=True),
+            body=json.dumps(_after, sort_keys=True),
             body_format='json',
             method=_action,
             auth=module.params['token']
