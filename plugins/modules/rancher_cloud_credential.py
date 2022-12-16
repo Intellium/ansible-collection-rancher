@@ -58,7 +58,7 @@ options:
 
     credential_type:
         description: Type of credential
-        default: vsphere
+        required: true
         type: str
         choices:
             - 'vsphere'
@@ -253,13 +253,14 @@ def credential_object(module):
     elif module.params['credential_type'] == "s3":
         typename = "s3credentialConfig"
     else:
-        g.mod_returns.update(changed=False, msg=module.params['credential_type']
+        g.mod_returns.update(changed=False,
+                             msg=module.params['credential_type']
                              + ' credential type not supported')
         api_exit(module, 'fail')
 
     body = {
-        "type": "cloudcredential",
-        "name": module.params['name']
+        "name": module.params['name'],
+        "type": "cloudcredential"
     }
 
     configitems = {}
@@ -282,7 +283,9 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
         credential=dict(type='dict', required=True),
-        credential_type=dict(type='str', required=True),
+        credential_type=dict(type='str', required=True, choices=[
+            'vsphere', 'ec2', 'azure', 'digitalocean', 'google',
+            'harvester', 'linode', 's3']),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
@@ -310,6 +313,9 @@ def main():
     _action = None
     _url = 'https://%s/v3/cloudcredentials' % (module.params['host'])
     ccparams = credential_object(module)
+    cctype = ccparams['type']
+    after = ccparams['body']
+    before = {}
 
     # Get current cc if it exists
     ccr, content = api_req(
@@ -322,62 +328,58 @@ def main():
 
     # check if CC by this name exists
     if ccr['status'] in (200, 201) and len(ccr['json']['data']) > 0:
-        # Check the type
-        if ccparams['type'] in ccr['json']['data'][0]:
-            # Get secret
-            sr, content = api_req(
-                module,
-                url='https://%s/v1/secrets/%s' % (
-                    module.params['host'],
-                    ccr['json']['data'][0]['id'].replace(':', '/')),
-                method='GET',
-                auth=module.params['token']
-            )
 
-            sr_data = sr['json']['data']
-
-            if sr['status'] in (200, 201) and len(sr['json']['data']) > 0:
-                for key in list(sr_data):
-                    k_new = key.replace(
-                        ccparams['type'] + '-', '')
-                    sr_data[k_new] = to_text(base64.b64decode(sr_data.pop(key)))
-
-            # Merge config found in secret and in cloudconfig and diff
-            cclive_config = dict_merge(
-                ccr['json']['data'][0][ccparams['type']],
-                sr_data)
-
-            cclive = {
-                "name": ccr['json']['data'][0]['name'],
-                ccparams['type']: cclive_config
-            }
-        else:
-            # Something went wrong
-            g.mod_returns.update(
-                changed=False, msg='Changing secret type is not supported')
-            api_exit(module, 'fail')
-
-        ccconfig = {
-            "name": module.params['name'],
-            ccparams['type']: module.params['credential']
-        }
-
-        diff_result = recursive_diff(cclive, ccconfig)
-
-        if diff_result is not None:
+        if module.params['state'] == 'absent':
             g.mod_returns.update(changed=True)
-            _action = 'PUT'
-            _body = ccparams['body']
+            _action = 'DELETE'
             _url = 'https://%s/v3/cloudCredentials/%s' % (
                 module.params['host'], ccr['json']['data'][0]['id'])
+            before = ccr['json']['data'][0]
+            after = {}
+
         else:
-            # CC exists, but nothing changed
-            if module.params['state'] == 'present':
-                g.mod_returns.update(changed=False)
-                api_exit(module)
-            elif module.params['state'] == 'absent':
+            # Check the type
+            if cctype in ccr['json']['data'][0]:
+                # Get secret
+                sr, content = api_req(
+                    module,
+                    url='https://%s/v1/secrets/%s' % (
+                        module.params['host'],
+                        ccr['json']['data'][0]['id'].replace(':', '/')),
+                    method='GET',
+                    auth=module.params['token']
+                )
+
+                sr_data = sr['json']['data']
+
+                if sr['status'] in (200, 201) and len(sr['json']['data']) > 0:
+                    for key in list(sr_data):
+                        k_new = key.replace(
+                            cctype + '-', '')
+                        sr_data[k_new] = to_text(
+                            base64.b64decode(sr_data.pop(key)))
+
+                # Merge config found in secret and in cloudconfig and diff
+                cclive_config = dict_merge(
+                    ccr['json']['data'][0][cctype],
+                    sr_data)
+
+                before = {
+                    "name": ccr['json']['data'][0]['name'],
+                    "type": "cloudcredential",
+                    cctype: cclive_config
+                }
+            else:
+                # Something went wrong
+                g.mod_returns.update(
+                    changed=False, msg='Changing secret type is not supported')
+                api_exit(module, 'fail')
+
+            diff_result = recursive_diff(before, after)
+
+            if diff_result is not None:
                 g.mod_returns.update(changed=True)
-                _action = 'DELETE'
+                _action = 'PUT'
                 _url = 'https://%s/v3/cloudCredentials/%s' % (
                     module.params['host'], ccr['json']['data'][0]['id'])
 
@@ -388,9 +390,8 @@ def main():
             api_exit(module)
         elif module.params['state'] == 'present':
             g.mod_returns.update(changed=True)
-            diff_result = recursive_diff({}, ccparams['body'][ccparams['type']])
+            diff_result = recursive_diff({}, after[cctype])
             _action = 'POST'
-            _body = ccparams['body']
     else:
         # Something went wrong
         g.mod_returns.update(
@@ -398,9 +399,9 @@ def main():
                                + to_text(g.last_response))
         api_exit(module, 'fail')
 
-    # Detremine if we need to change something
     if module._diff:
-        g.mod_returns.update(diff=diff_result)
+        g.mod_returns.update(diff=dict(before=before,
+                                       after=after))
 
     if module.check_mode:
         api_exit(module)
@@ -410,17 +411,14 @@ def main():
         action_req, content = api_req(
             module,
             url=_url,
-            body=json.dumps(_body, sort_keys=True),
+            body=json.dumps(after, sort_keys=True),
             body_format='json',
             method=_action,
             auth=module.params['token']
         )
 
-        # g.mod_returns.update(msg=to_text(_body))
-        # api_exit(module, 'fail')
-
         # Check status code
-        if action_req['status'] in (200, 201, 202):
+        if action_req['status'] in (200, 201, 202, 204):
             g.mod_returns.update(changed=True)
             api_exit(module)
         elif action_req['status'] == 403:
