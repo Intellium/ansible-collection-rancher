@@ -9,25 +9,21 @@ __metaclass__ = type
 
 DOCUMENTATION = r'''
 ---
-module: rancher_machine_config_vsphere
+module: rancher_machine_config
 short_description: Manage Rancher Machine configs
 description:
     - This module allows you to manage the lifecycle of machine configs.
+    - Only tested on vmware vsphere configs!
 version_added: "0.1.0"
 author:
     - Wouter Moeken (@intellium)
+    - Cees Moerkerken (@ceesios)
 
 options:
     state:
         description: absent or present
         choices: ['present', 'absent']
         default: 'present'
-        type: str
-
-    cluster_name:
-        description: Name of the cluster in rancher to operate on
-        aliases: [ rancher_cluster ]
-        required: true
         type: str
 
     host:
@@ -54,6 +50,132 @@ options:
         required: false
         type: str
 
+    name:
+        description: Name of the machine config
+        required: true
+        type: str
+
+    namespace:
+        description: Namespace of the machine config
+        default: 'fleet-default'
+        type: str
+
+    mc_type:
+        description: Machine config parameters
+        required: true
+        type: str
+        choices:
+            - 'vsphere'
+            - 'ec2'
+            - 'azure'
+            - 'digitalocean'
+            - 'google'
+            - 'harvester'
+            - 'linode'
+            - 's3'
+
+    mc:
+        description:
+            - Cloud Credential to create in Rancher
+            - Suboptions must be capitilazed correctly!
+        required: true
+        type: dict
+        suboptions:
+            cloneFrom:
+                description:
+                    - vSphere cloneFrom
+                    - Required when type=vsphere
+                type: str
+
+            cloudConfig:
+                description:
+                    - vSphere cloudConfig
+                    - Required when type=vsphere
+                type: str
+
+            cloudinit:
+                description:
+                    - vSphere cloudinit
+                    - Required when type=vsphere
+                type: str
+
+            contentLibrary:
+                description:
+                    - vSphere contentLibrary
+                    - Required when type=vsphere
+                type: str
+
+            cpuCount:
+                description:
+                    - vSphere cpuCount
+                    - Required when type=vsphere
+                type: str
+
+            creationType:
+                description:
+                    - vSphere creationType
+                    - Required when type=vsphere
+                type: str
+
+            datacenter:
+                description:
+                    - vSphere datacenter
+                    - Required when type=vsphere
+                type: str
+
+            datastore:
+                description:
+                    - vSphere datastore
+                    - Required when type=vsphere
+                type: str
+
+            datastoreCluster:
+                description:
+                    - vSphere datastoreCluster
+                    - Required when type=vsphere
+                type: str
+
+            diskSize:
+                description:
+                    - vSphere diskSize
+                    - Required when type=vsphere
+                type: str
+
+            folder:
+                description:
+                    - vSphere folder
+                    - Required when type=vsphere
+                type: str
+
+            hostsystem:
+                description:
+                    - vSphere hostsystem
+                    - Required when type=vsphere
+                type: str
+
+            kind:
+                description:
+                    - vSphere kind
+                    - Required when type=vsphere
+                type: str
+
+            memorySize:
+                description:
+                    - vSphere memorySize
+                    - Required when type=vsphere
+                type: str
+
+            network:
+                description:
+                    - vSphere network
+                    - Required when type=vsphere
+                type: str
+
+            os:
+                description:
+                    - vSphere os
+                    - Required when type=vsphere
+                type: str
     full_response:
         description: Whether to return full api response
         required: false
@@ -113,6 +235,9 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
+        mc_type=dict(type='str', required=True, choices=[
+            'vsphere', 'ec2', 'azure', 'digitalocean', 'google',
+            'harvester', 'linode', 's3']),
         mc=dict(type='dict', required=True),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
