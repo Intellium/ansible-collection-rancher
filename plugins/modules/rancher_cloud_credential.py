@@ -197,8 +197,8 @@ options:
 EXAMPLES = r'''
 # Add repository
 - name: Test create cc
-    intellium.rancher.rancher_cloud_credential:
-    host: "{{ rancher_host }}"
+  intellium.rancher.rancher_cloud_credential:
+    host: rancher.example.com
     token: "{{ login_out['token'] }}"
     name: "mycred"
     credential_type: vsphere
@@ -208,7 +208,7 @@ EXAMPLES = r'''
         password: "mysecretpass"
         vcenterPort: "443"
     validate_certs: true
-    full_response: "{{ full_response }}"
+    full_response: true
     register: cc
 
 '''
