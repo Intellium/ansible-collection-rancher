@@ -5,16 +5,6 @@
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import (absolute_import, division, print_function)
-from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
-    import api_req, clusterid_by_name, api_login, api_exit
-import ansible_collections.intellium.rancher.plugins.module_utils.\
-    rancher_globals as g
-from ansible.module_utils.common.dict_transformations \
-    import recursive_diff, dict_merge
-from ansible.module_utils.basic import AnsibleModule, sanitize_keys
-from ansible.module_utils._text import to_native, to_text
-import base64
-import json
 __metaclass__ = type
 
 DOCUMENTATION = r'''
@@ -91,12 +81,25 @@ EXAMPLES = r'''
 '''
 
 RETURN = r'''
-# These are examples of possible return values, and in general should use other names for return values.
+# These are examples of possible return values, and in general should
+# use other names for return values.
 full_response:
     description: The full API response of the last request
     type: dict
     returned: optional
 '''
+
+import json
+
+from ansible.module_utils.common.dict_transformations \
+    import recursive_diff, dict_merge
+from ansible.module_utils.basic import AnsibleModule, sanitize_keys
+from ansible.module_utils._text import to_native, to_text
+
+from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
+    import api_req, clusterid_by_name, api_login, api_exit
+import ansible_collections.intellium.rancher.plugins.module_utils.\
+    rancher_globals as g
 
 
 def main():
