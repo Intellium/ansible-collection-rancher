@@ -69,15 +69,15 @@ options:
             - 'ec2'
             - 'azure'
             - 'digitalocean'
-            - 'google'
             - 'harvester'
             - 'linode'
-            - 's3'
 
     mc:
         description:
-            - Cloud Credential to create in Rancher
+            - Machine config to create in Rancher
             - Suboptions must be capitilazed correctly!
+            - Only vsphere options are tested.
+            - See v1/schemas/rke-machine-config.cattle.io.<type> for schema
         required: true
         type: dict
         suboptions:
@@ -194,10 +194,17 @@ EXAMPLES = r'''
   intellium.rancher.rancher_machine_config:
     state: present
     host: rancher.example.com
-    username: admin
-    password: changeme12345
-
-
+    token: "{{ login_out['token'] }}"
+    name: "vsphere"
+    mc_type: vsphere
+    mc:
+        cloneFrom: "Ubuntu"
+        datacenter: "dc-example"
+        datastore: "ds-example"
+        folder: "example"
+        cpuCount: "4"
+        diskSize: "20480"
+        memorySize: "4096"
     full_response: true
     validate_certs: false
 '''
@@ -236,8 +243,7 @@ def main():
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
         mc_type=dict(type='str', required=True, choices=[
-            'vsphere', 'ec2', 'azure', 'digitalocean', 'google',
-            'harvester', 'linode', 's3']),
+            'vsphere', 'ec2', 'azure', 'digitalocean', 'harvester', 'linode']),
         mc=dict(type='dict', required=True),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
@@ -263,8 +269,9 @@ def main():
         module.params['token'] = api_login(module)
 
     # Set defaults (_ = internal use and may change)
+    typeinfo = determine_type(module)
     _action = None
-    api_path = "v1/rke-machine-config.cattle.io.vmwarevsphereconfigs"
+    api_path = "v1/rke-machine-config.cattle.io." + typeinfo['type']
     baseurl = f"https://{module.params['host']}/{api_path}"
     mcr_id = f"{module.params['namespace']}/{module.params['name']}"
     _url = baseurl
@@ -301,10 +308,14 @@ def main():
                     "namespace": mc['metadata']['namespace']
                 },
                 "apiVersion": mc['apiVersion'],
-                "kind": "VmwarevsphereConfig"
+                "kind": typeinfo['type']
             }
             for item in module.params['mc']:
-                _before.update({item: mc[item]})
+                try:
+                    _before.update({item: mc[item]})
+                except KeyError:
+                    _before.update({item: ""})
+                    g.mod_returns.update(msg=f'no config for {item} found')
 
             _url = f"{baseurl}/{mcr_id}"
 
@@ -318,13 +329,13 @@ def main():
                 if diff_result is not None:
                     g.mod_returns.update(changed=True)
                     _action = 'PUT'
-                    newversion = int(mc['metadata']['resourceVersion']) + 1
                     _after.update(
                         {
                             "metadata": {
                                 "name": module.params['name'],
                                 "namespace": module.params['namespace'],
-                                "resourceVersion": to_text(newversion)
+                                "resourceVersion":
+                                    mc['metadata']['resourceVersion']
                             }
                         }
                     )
@@ -388,6 +399,43 @@ def main():
             api_exit(module, 'fail')
     else:
         api_exit(module)
+
+
+def determine_type(module):
+    _type = module.params['mc_type']
+    if _type == "vsphere":
+        typename = "vmwarevsphereconfigs"
+    elif _type == "ec2":
+        typename = "amazonec2configs"
+    elif _type == "azure":
+        typename = "azureconfigs"
+    elif _type == "digitalocean":
+        typename = "digitaloceanconfigs"
+    elif _type == "harvester":
+        typename = "harvesterconfigs"
+    elif _type == "linode":
+        typename = "linodeconfigs"
+    else:
+        g.mod_returns.update(changed=False,
+                             msg=_type
+                             + ' type not supported')
+        api_exit(module, 'fail')
+
+    body = {
+        "metadata": {
+            "name": module.params['name'],
+            "namespace": module.params['namespace']
+        },
+        "apiVersion": "rke-machine-config.cattle.io/v1"
+    }
+
+    configitems = {}
+    for item in module.params['mc']:
+        configitems.update({item: module.params['mc'][item]})
+
+    body.update({typename: configitems})
+
+    return {"body": body, "type": typename}
 
 
 if __name__ == '__main__':
