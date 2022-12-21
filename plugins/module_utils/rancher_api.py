@@ -103,14 +103,22 @@ def check_req(r, module):
     retval = False
     # Check status code
     if r['status'] in (200, 201, 202, 204):
+        # v3 api supports filtering giving a list of data objects
         try:
-            g.mod_returns.update(output=r['json'])
-        except BaseException:
-            g.mod_returns.update(output={})
+            g.mod_returns.update(output=r['json']['data'][0])
+        except KeyError:
+            try:
+                g.mod_returns.update(output=r['json'])
+            except BaseException:
+                g.mod_returns.update(output={})
+
         try:
-            g.mod_returns.update(id=r['json']['id'])
-        except BaseException:
-            g.mod_returns.update(id="")
+            g.mod_returns.update(id=r['json']['data'][0]['id'])
+        except KeyError:
+            try:
+                g.mod_returns.update(id=r['json']['id'])
+            except BaseException:
+                g.mod_returns.update(id="")
         retval = True
     elif r['status'] == 401:
         g.mod_returns.update(
@@ -130,7 +138,8 @@ def check_req(r, module):
     elif r['status'] == -1 and r['msg'].find("CERTIFICATE_VERIFY_FAILED"):
         g.mod_returns.update(msg='SSL Certificate verify failed')
     else:
-        g.mod_returns.update(msg='Unexpected response: ' + to_text(r))
+        g.mod_returns.update(msg='Unexpected response while checking request: '
+                                 + to_text(r))
 
     return retval
 
