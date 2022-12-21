@@ -93,8 +93,46 @@ def api_req(module, url='', body='', body_format='json', method='GET',
     # Set last_response
     g.last_response = r
 
+    r['check'] = check_req(r, module)
+
     # Return result
     return r, content
+
+
+def check_req(r, module):
+    retval = False
+    # Check status code
+    if r['status'] in (200, 201, 202, 204):
+        try:
+            g.mod_returns.update(output=r['json'])
+        except BaseException:
+            g.mod_returns.update(output={})
+        try:
+            g.mod_returns.update(id=r['json']['id'])
+        except BaseException:
+            g.mod_returns.update(id="")
+        retval = True
+    elif r['status'] == 401:
+        g.mod_returns.update(
+            msg='Authentication error. Check username / password')
+    elif r['status'] == 403:
+        g.mod_returns.update(
+            msg='The authenticated user is not allowed amcess to the \
+                requested resource. Check username / password ')
+    elif r['status'] == 404:
+        g.mod_returns.update(
+            msg='The requested resource is not found')
+    elif r['status'] == 409:
+        g.mod_returns.update(
+            msg='Trying to create object that exists. \
+                ' + to_text(r['msg']) + '\
+                ' + to_text(r['body']))
+    elif r['status'] == -1 and r['msg'].find("CERTIFICATE_VERIFY_FAILED"):
+        g.mod_returns.update(msg='SSL Certificate verify failed')
+    else:
+        g.mod_returns.update(msg='Unexpected response: ' + to_text(r))
+
+    return retval
 
 
 def clusterid_by_name(module):
@@ -171,33 +209,18 @@ def api_login(module):
     g.last_reponse = resp
 
     # Ensure the API responds correctly
-    if resp['status'] not in (200, 201):
-        if resp['status'] == 401:
-            g.mod_returns.update(
-                msg='Authentication error. Check username / password')
-            api_exit(module, 'fail')
-        elif resp['status'] == -1 \
-                and resp['msg'].find("CERTIFICATE_VERIFY_FAILED"):
-            g.mod_returns.update(
-                msg='SSL Certificate verify failed')
-            api_exit(module, 'fail')
-        elif len(resp['msg']) > 0:
-            g.mod_returns.update(
-                msg='Failed login due to API error. '
-                    + to_text(resp['msg']))
-            api_exit(module, 'fail')
+    if resp['check']:
+        if resp['json']['token']:
+            token = resp['json']['token']
         else:
             g.mod_returns.update(
-                msg='Failed login due to API error. '
-                    + to_text(resp))
+                msg='Failed getting token from API response. \
+                    Use full_response=true to debug.')
             api_exit(module, 'fail')
-
-    if resp['json']['token']:
-        token = resp['json']['token']
     else:
         g.mod_returns.update(
-            msg='Failed getting token from API response. \
-                 Use full_response=true to debug.')
+            msg='Failed login due to API error. '
+                + to_text(resp))
         api_exit(module, 'fail')
 
     return token

@@ -212,6 +212,14 @@ EXAMPLES = r'''
 RETURN = r'''
 # These are examples of possible return values, and in general should
 # use other names for return values.
+id:
+    description: The ID of the machine config
+    type: dict
+    returned: always
+output:
+    description: The machine config object
+    type: dict
+    returned: always
 full_response:
     description: The full API response of the last request
     type: dict
@@ -226,7 +234,7 @@ from ansible.module_utils.basic import AnsibleModule, sanitize_keys
 from ansible.module_utils._text import to_native, to_text
 
 from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
-    import api_req, clusterid_by_name, api_login, api_exit
+    import api_req, api_login, api_exit
 import ansible_collections.intellium.rancher.plugins.module_utils.\
     rancher_globals as g
 
@@ -300,8 +308,7 @@ def main():
         mc = next((i for i in mcr['json']['data'] if i["id"] == mcr_id), None)
 
         if mc is not None:
-            # mc exists, only work with configured values
-            # _before = mc
+            # mc exists
             _before = {
                 "metadata": {
                     "name": mc['metadata']['name'],
@@ -374,29 +381,13 @@ def main():
             auth=module.params['token']
         )
 
-        # Check status code
-        if action_req['status'] in (200, 201, 202, 204):
+        # Check status code and set id and output
+        if action_req['check']:
             g.mod_returns.update(changed=True)
             api_exit(module)
-        elif action_req['status'] == 403:
-            g.mod_returns.update(
-                msg='The authenticated user is not allowed amcess to the \
-                    requested resource. Check username / password ')
-            api_exit(module, 'fail')
-        elif action_req['status'] == 404:
-            g.mod_returns.update(
-                msg='The requested resource is not found')
-            api_exit(module, 'fail')
-        elif action_req['status'] == 409:
-            g.mod_returns.update(
-                msg='Trying to create object that exists. \
-                    ' + to_text(action_req['msg']) + '\
-                    ' + to_text(action_req['body']))
-            api_exit(module, 'fail')
         else:
-            g.mod_returns.update(msg='Unexpected response: '
-                                 + to_text(action_req))
             api_exit(module, 'fail')
+
     else:
         api_exit(module)
 
