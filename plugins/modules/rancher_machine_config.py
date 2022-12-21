@@ -61,7 +61,7 @@ options:
         type: str
 
     type:
-        description: Machine config parameters
+        description: Type of Machine config
         required: true
         type: str
         choices:
@@ -285,16 +285,19 @@ def main():
     _url = baseurl
     _before = {}
     _after = {
+        "apiVersion": "rke-machine-config.cattle.io/v1",
+        "id": v1_id,
+        "kind": typeinfo['type'],
         "metadata": {
             "name": module.params['name'],
             "namespace": module.params['namespace']
-        },
-        "apiVersion": "rke-machine-config.cattle.io/v1"
+        }
     }
+    # Only change defined options in config
     for item in module.params['config']:
         _after.update({item: module.params['config'][item]})
 
-    # Get all mcs, filtering is not possible in api.
+    # Get all items, filtering is not possible in v1 api.
     # Using limit since we don't support pagination.
     get, content = api_req(
         module,
@@ -310,13 +313,15 @@ def main():
         if mc is not None:
             # mc exists
             _before = {
+                "apiVersion": mc['apiVersion'],
+                "id": mc['id'],
+                "kind": typeinfo['type'],
                 "metadata": {
                     "name": mc['metadata']['name'],
-                    "namespace": mc['metadata']['namespace']
-                },
-                "apiVersion": mc['apiVersion'],
-                "kind": typeinfo['type']
+                    "namespace": mc['metadata']['namespace'],
+                }
             }
+            # Only ckeck defined options in config
             for item in module.params['config']:
                 try:
                     _before.update({item: mc[item]})
@@ -336,16 +341,6 @@ def main():
                 if diff_result is not None:
                     g.mod_returns.update(changed=True)
                     _action = 'PUT'
-                    _after.update(
-                        {
-                            "metadata": {
-                                "name": module.params['name'],
-                                "namespace": module.params['namespace'],
-                                "resourceVersion":
-                                    mc['metadata']['resourceVersion']
-                            }
-                        }
-                    )
 
         else:
             # mc doesn't exist
