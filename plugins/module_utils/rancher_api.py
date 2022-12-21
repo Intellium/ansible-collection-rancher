@@ -176,10 +176,20 @@ def api_login(module):
             g.mod_returns.update(
                 msg='Authentication error. Check username / password')
             api_exit(module, 'fail')
+        elif resp['status'] == -1 \
+                and resp['msg'].find("CERTIFICATE_VERIFY_FAILED"):
+            g.mod_returns.update(
+                msg='SSL Certificate verify failed')
+            api_exit(module, 'fail')
+        elif len(resp['msg']) > 0:
+            g.mod_returns.update(
+                msg='Failed login due to API error. '
+                    + to_text(resp['msg']))
+            api_exit(module, 'fail')
         else:
             g.mod_returns.update(
-                msg='Failed login due to API error. Use full_response=true \
-                    to debug.')
+                msg='Failed login due to API error. '
+                    + to_text(resp))
             api_exit(module, 'fail')
 
     if resp['json']['token']:
