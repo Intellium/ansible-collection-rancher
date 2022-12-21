@@ -60,7 +60,7 @@ options:
         default: 'fleet-default'
         type: str
 
-    mc_type:
+    type:
         description: Machine config parameters
         required: true
         type: str
@@ -72,7 +72,7 @@ options:
             - 'harvester'
             - 'linode'
 
-    mc:
+    config:
         description:
             - Machine config to create in Rancher
             - Suboptions must be capitilazed correctly!
@@ -196,8 +196,8 @@ EXAMPLES = r'''
     host: rancher.example.com
     token: "{{ login_out['token'] }}"
     name: "vsphere"
-    mc_type: vsphere
-    mc:
+    type: vsphere
+    config:
         cloneFrom: "Ubuntu"
         datacenter: "dc-example"
         datastore: "ds-example"
@@ -250,9 +250,9 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
-        mc_type=dict(type='str', required=True, choices=[
+        type=dict(type='str', required=True, choices=[
             'vsphere', 'ec2', 'azure', 'digitalocean', 'harvester', 'linode']),
-        mc=dict(type='dict', required=True),
+        config=dict(type='dict', required=True),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
@@ -281,7 +281,7 @@ def main():
     _action = None
     api_path = "v1/rke-machine-config.cattle.io." + typeinfo['type']
     baseurl = f"https://{module.params['host']}/{api_path}"
-    mcr_id = f"{module.params['namespace']}/{module.params['name']}"
+    v1_id = f"{module.params['namespace']}/{module.params['name']}"
     _url = baseurl
     _before = {}
     _after = {
@@ -291,21 +291,21 @@ def main():
         },
         "apiVersion": "rke-machine-config.cattle.io/v1"
     }
-    for item in module.params['mc']:
-        _after.update({item: module.params['mc'][item]})
+    for item in module.params['config']:
+        _after.update({item: module.params['config'][item]})
 
     # Get all mcs, filtering is not possible in api.
     # Using limit since we don't support pagination.
-    mcr, content = api_req(
+    get, content = api_req(
         module,
         url=f"{baseurl}?limit=1000",
         method='GET',
         auth=module.params['token']
     )
 
-    if mcr['status'] in (200, 201):
+    if get['status'] in (200, 201):
         # check if mc by this name exists
-        mc = next((i for i in mcr['json']['data'] if i["id"] == mcr_id), None)
+        mc = next((i for i in get['json']['data'] if i["id"] == v1_id), None)
 
         if mc is not None:
             # mc exists
@@ -317,14 +317,14 @@ def main():
                 "apiVersion": mc['apiVersion'],
                 "kind": typeinfo['type']
             }
-            for item in module.params['mc']:
+            for item in module.params['config']:
                 try:
                     _before.update({item: mc[item]})
                 except KeyError:
                     _before.update({item: ""})
                     g.mod_returns.update(msg=f'no config for {item} found')
 
-            _url = f"{baseurl}/{mcr_id}"
+            _url = f"{baseurl}/{v1_id}"
 
             if module.params['state'] == 'absent':
                 g.mod_returns.update(changed=True)
@@ -393,7 +393,7 @@ def main():
 
 
 def determine_type(module):
-    _type = module.params['mc_type']
+    _type = module.params['type']
     if _type == "vsphere":
         typename = "vmwarevsphereconfigs"
     elif _type == "ec2":
@@ -421,8 +421,8 @@ def determine_type(module):
     }
 
     configitems = {}
-    for item in module.params['mc']:
-        configitems.update({item: module.params['mc'][item]})
+    for item in module.params['config']:
+        configitems.update({item: module.params['config'][item]})
 
     body.update({typename: configitems})
 

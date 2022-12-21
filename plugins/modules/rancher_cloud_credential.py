@@ -56,7 +56,7 @@ options:
         required: true
         type: str
 
-    credential_type:
+    type:
         description: Type of credential
         required: true
         type: str
@@ -70,7 +70,7 @@ options:
             - 'linode'
             - 's3'
 
-    credential:
+    config:
         description:
             - Cloud Credential to create in Rancher
             - Suboptions must be capitilazed correctly!
@@ -201,8 +201,8 @@ EXAMPLES = r'''
     host: rancher.example.com
     token: "{{ login_out['token'] }}"
     name: "mycred"
-    credential_type: vsphere
-    credential:
+    type: vsphere
+    config:
         vcenter: "vcenter.example.com"
         username: "myuser"
         password: "mysecretpass"
@@ -245,26 +245,26 @@ from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
 
 
 def credential_object(module):
-    # credential = module.params['credential']
-    if module.params['credential_type'] == "vsphere":
+    # credential = module.params['config']
+    if module.params['type'] == "vsphere":
         typename = "vmwarevspherecredentialConfig"
-    elif module.params['credential_type'] == "ec2":
+    elif module.params['type'] == "ec2":
         typename = "amazonec2credentialConfig"
-    elif module.params['credential_type'] == "azure":
+    elif module.params['type'] == "azure":
         typename = "azurecredentialConfig"
-    elif module.params['credential_type'] == "digitalocean":
+    elif module.params['type'] == "digitalocean":
         typename = "digitaloceancredentialConfig"
-    elif module.params['credential_type'] == "google":
+    elif module.params['type'] == "google":
         typename = "googlecredentialConfig"
-    elif module.params['credential_type'] == "harvester":
+    elif module.params['type'] == "harvester":
         typename = "harvestercredentialConfig"
-    elif module.params['credential_type'] == "linode":
+    elif module.params['type'] == "linode":
         typename = "linodecredentialConfig"
-    elif module.params['credential_type'] == "s3":
+    elif module.params['type'] == "s3":
         typename = "s3credentialConfig"
     else:
         g.mod_returns.update(changed=False,
-                             msg=module.params['credential_type']
+                             msg=module.params['type']
                              + ' credential type not supported')
         api_exit(module, 'fail')
 
@@ -274,8 +274,8 @@ def credential_object(module):
     }
 
     configitems = {}
-    for item in module.params['credential']:
-        configitems.update({item: module.params['credential'][item]})
+    for item in module.params['config']:
+        configitems.update({item: module.params['config'][item]})
 
     body.update({typename: configitems})
 
@@ -292,8 +292,8 @@ def main():
         username=dict(type='str', aliases=['rancher_username']),
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
-        credential=dict(type='dict', required=True),
-        credential_type=dict(type='str', required=True, choices=[
+        config=dict(type='dict', required=True),
+        type=dict(type='str', required=True, choices=[
             'vsphere', 'ec2', 'azure', 'digitalocean', 'google',
             'harvester', 'linode', 's3']),
         full_response=dict(type='bool'),
@@ -330,7 +330,7 @@ def main():
     _after = ccparams['body']
 
     # Get current cc if it exists
-    ccr, content = api_req(
+    get, content = api_req(
         module,
         url=f"{baseurl}/?name={module.params['name']}",
         method='GET',
@@ -338,24 +338,24 @@ def main():
     )
 
     # check if CC by this name exists
-    if ccr['status'] in (200, 201) and len(ccr['json']['data']) > 0:
+    if get['status'] in (200, 201) and len(get['json']['data']) > 0:
         # CC exists
         if module.params['state'] == 'absent':
             g.mod_returns.update(changed=True)
             _action = 'DELETE'
-            _url = f"{baseurl}/{ccr['json']['data'][0]['id']}"
-            _before = ccr['json']['data'][0]
+            _url = f"{baseurl}/{get['json']['data'][0]['id']}"
+            _before = get['json']['data'][0]
             _after = {}
 
         else:
             # Check the type
-            if cctype in ccr['json']['data'][0]:
+            if cctype in get['json']['data'][0]:
                 # Get secret
                 sr, content = api_req(
                     module,
                     url='https://%s/v1/secrets/%s' % (
                         module.params['host'],
-                        ccr['json']['data'][0]['id'].replace(':', '/')),
+                        get['json']['data'][0]['id'].replace(':', '/')),
                     method='GET',
                     auth=module.params['token']
                 )
@@ -370,11 +370,11 @@ def main():
 
                 # Merge config found in secret and in cloudconfig and diff
                 cclive_config = dict_merge(
-                    ccr['json']['data'][0][cctype],
+                    get['json']['data'][0][cctype],
                     sr_data)
 
                 _before = {
-                    "name": ccr['json']['data'][0]['name'],
+                    "name": get['json']['data'][0]['name'],
                     "type": "cloudcredential",
                     cctype: cclive_config
                 }
@@ -389,9 +389,9 @@ def main():
             if diff_result is not None:
                 g.mod_returns.update(changed=True)
                 _action = 'PUT'
-                _url = f"{baseurl}/{ccr['json']['data'][0]['id']}"
+                _url = f"{baseurl}/{get['json']['data'][0]['id']}"
 
-    elif ccr['status'] in (200, 201) and len(ccr['json']['data']) < 1:
+    elif get['status'] in (200, 201) and len(get['json']['data']) < 1:
         # CC doesn't exist
         if module.params['state'] == 'absent':
             g.mod_returns.update(changed=False)
