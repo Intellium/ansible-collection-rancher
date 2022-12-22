@@ -138,8 +138,9 @@ def check_req(r, module):
     elif r['status'] == -1 and r['msg'].find("CERTIFICATE_VERIFY_FAILED"):
         g.mod_returns.update(msg='SSL Certificate verify failed')
     else:
-        g.mod_returns.update(msg='Unexpected response while checking request: '
-                                 + to_text(r))
+        g.mod_returns.update(msg='Unexpected response while checking request.')
+        g.mod_returns.update(output={})
+        g.mod_returns.update(stderr_lines=r)
 
     return retval
 
