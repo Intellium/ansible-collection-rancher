@@ -20,6 +20,9 @@ from ansible.module_utils.six import PY2, PY3, binary_type, iteritems
 from ansible.module_utils._text import to_native, to_text
 from ansible.module_utils.urls import fetch_url, url_argument_spec
 
+# from ansible.module_utils.common.arg_spec import ArgumentSpecValidator
+# from ansible.module_utils.common.validation import check_mutually_exclusive
+
 
 def api_req(module, url='', body='', body_format='json', method='GET',
             headers=None, auth=''):
@@ -111,6 +114,8 @@ def check_req(r, module):
                 g.mod_returns.update(output=r['json'])
             except BaseException:
                 g.mod_returns.update(output={})
+        except BaseException:
+            g.mod_returns.update(output={})
 
         try:
             g.mod_returns.update(id=r['json']['data'][0]['id'])
@@ -119,6 +124,9 @@ def check_req(r, module):
                 g.mod_returns.update(id=r['json']['id'])
             except BaseException:
                 g.mod_returns.update(id="")
+        except BaseException:
+            g.mod_returns.update(output={})
+
         retval = True
     elif r['status'] == 401:
         g.mod_returns.update(
