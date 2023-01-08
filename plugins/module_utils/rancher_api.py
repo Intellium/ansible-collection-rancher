@@ -14,7 +14,8 @@ import os
 # Globals
 import ansible_collections.intellium.rancher.plugins.module_utils.\
     rancher_globals as g
-
+from ansible.module_utils.common.dict_transformations \
+    import recursive_diff, dict_merge
 from ansible.module_utils.basic import AnsibleModule, sanitize_keys
 from ansible.module_utils.six import PY2, PY3, binary_type, iteritems
 from ansible.module_utils._text import to_native, to_text
@@ -249,3 +250,90 @@ def api_exit(module, type='normal'):
         module.fail_json(**g.mod_returns)
     else:
         module.exit_json(**g.mod_returns)
+
+
+def v1_diff_object(module, url, id, config):
+    # Set defaults
+    _action = None
+    _url = url
+    _before = {}
+    _after = config['body']
+
+    # Get all items, filtering is not possible in v1 api.
+    # Using limit since we don't support pagination.
+    get, content = api_req(
+        module,
+        url=f"{url}?limit=1000",
+        method='GET',
+        auth=module.params['token']
+    )
+
+    if get['status'] in (200, 201):
+        # check if resource by this name exists
+        getobj = next((i for i in get['json']['data'] if i["id"] == id), None)
+
+        if getobj is not None:
+            _exists = True
+            # resource exists
+            resourceVersion = getobj['metadata']['resourceVersion']
+            _before = {
+                "apiVersion": getobj['apiVersion'],
+                "common": getobj['common'],
+                "id": getobj['id'],
+                "kind": getobj['kind'],
+                "type": getobj['type'],
+                "metadata": {
+                    "name": getobj['metadata']['name'],
+                    "namespace": getobj['metadata']['namespace'],
+                    "resourceVersion": resourceVersion
+                }
+            }
+            _after = config['body']
+            _after['metadata']['resourceVersion'] = resourceVersion
+
+            # Only ckeck defined options by build_config
+            for item in config['config_items']:
+                try:
+                    _before.update({item: getobj[item]})
+                except KeyError:
+                    _before.update({item: ""})
+
+            # URL for updating includes the id
+            _url = f"{url}/{id}"
+
+            if module.params['state'] == 'absent':
+                g.mod_returns.update(changed=True)
+                _action = 'DELETE'
+                _after = {}
+
+            else:
+                diff_result = recursive_diff(_before, _after)
+                if diff_result is not None:
+                    g.mod_returns.update(changed=True)
+                    _action = 'PUT'
+
+        else:
+            # mc doesn't exist
+            if module.params['state'] == 'absent':
+                g.mod_returns.update(changed=False)
+                api_exit(module)
+
+            elif module.params['state'] == 'present':
+                g.mod_returns.update(changed=True)
+                _action = 'POST'
+
+    else:
+        # Something went wrong
+        g.mod_returns.update(
+            changed=False, msg='Something went wrong. Unexpected response: '
+                               + to_text(g.last_response))
+        api_exit(module, 'fail')
+
+    # Set return values
+    retval = {}
+    retval["before"] = _before
+    retval["after"] = _after
+    retval["action"] = _action
+    retval["url"] = _url
+
+    return retval
