@@ -51,7 +51,7 @@ options:
         type: str
 
     name:
-        description: Name of the machine config
+        description: Name (= rancher id) of the machine config, must be unique
         required: true
         type: str
 
@@ -61,121 +61,145 @@ options:
         type: str
 
     type:
-        description: Type of Machine config
+        description: Type of Machine config. Only vsphere is tested
         required: true
         type: str
         choices:
             - 'vsphere'
-            - 'ec2'
+            - 'amazonec2'
             - 'azure'
             - 'digitalocean'
             - 'harvester'
             - 'linode'
 
-    config:
+    labels:
+        description: Labels to add to nodes created from this machine config
+        required: false
+        type: dict
+
+    vsphereconfig:
         description:
-            - Machine config to create in Rancher
-            - Suboptions must be capitilazed correctly!
-            - Only vsphere options are tested.
-            - See v1/schemas/rke-machine-config.cattle.io.<type> for schema
-        required: true
+            - vsphere Machine config to create in Rancher
+            - Required when type=vsphere
+        required: false
         type: dict
         suboptions:
             cloneFrom:
-                description:
-                    - vSphere cloneFrom
-                    - Required when type=vsphere
+                description: clone VM From template or VM
                 type: str
-
+                required: true
             cloudConfig:
-                description:
-                    - vSphere cloudConfig
-                    - Required when type=vsphere
+                description: cloudConfig
                 type: str
-
+                default: "#cloud-config"
             cloudinit:
-                description:
-                    - vSphere cloudinit
-                    - Required when type=vsphere
+                description: cloudinit config
                 type: str
-
+                default: ""
             contentLibrary:
-                description:
-                    - vSphere contentLibrary
-                    - Required when type=vsphere
+                description: contentLibrary to clone from
                 type: str
-
+                default: ""
             cpuCount:
-                description:
-                    - vSphere cpuCount
-                    - Required when type=vsphere
+                description: VM cpuCount
                 type: str
-
+                required: true
             creationType:
-                description:
-                    - vSphere creationType
-                    - Required when type=vsphere
+                description: creationType
                 type: str
-
+                default: "template"
+                choices:
+                    - 'template'
+                    - 'vm'
+                    - 'library'
+                    - 'legacy'
             datacenter:
-                description:
-                    - vSphere datacenter
-                    - Required when type=vsphere
+                description: vSphere datacenter
                 type: str
-
+                required: true
             datastore:
-                description:
-                    - vSphere datastore
-                    - Required when type=vsphere
+                description: vSphere datastore
                 type: str
-
+                required: true
             datastoreCluster:
-                description:
-                    - vSphere datastoreCluster
-                    - Required when type=vsphere
+                description: vSphere datastoreCluster
                 type: str
-
+                default: ""
             diskSize:
-                description:
-                    - vSphere diskSize
-                    - Required when type=vsphere
+                description: VM diskSize
                 type: str
-
+                required: true
             folder:
-                description:
-                    - vSphere folder
-                    - Required when type=vsphere
+                description: vSphere VM folder
                 type: str
-
+                required: true
             hostsystem:
-                description:
-                    - vSphere hostsystem
-                    - Required when type=vsphere
+                description: vSphere host when not using vcenter
                 type: str
-
-            kind:
-                description:
-                    - vSphere kind
-                    - Required when type=vsphere
-                type: str
-
+                default: ""
             memorySize:
-                description:
-                    - vSphere memorySize
-                    - Required when type=vsphere
+                description: vm memorySize
                 type: str
-
+                required: true
             network:
-                description:
-                    - vSphere network
-                    - Required when type=vsphere
-                type: str
-
+                description: vSphere network
+                type: list
+                required: true
+                elements: str
             os:
-                description:
-                    - vSphere os
-                    - Required when type=vsphere
+                description: vm os
                 type: str
+                default: "linux"
+            vcenter:
+                description: vcenter server address
+                type: str
+                default: ""
+            vcenterPort:
+                description: vcenter server port
+                type: str
+                default: "443"
+    amazonec2config:
+        description:
+            - amazonec2 Machine config to create in Rancher
+            - Required when type=amazonec2
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.amazonec2config
+        required: false
+        type: dict
+    azureconfig:
+        description:
+            - azure Machine config to create in Rancher
+            - Required when type=azure
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.azureconfig
+        required: false
+        type: dict
+    digitaloceanconfig:
+        description:
+            - digitalocean Machine config to create in Rancher
+            - Required when type=digitalocean
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.digitaloceanconfig
+        required: false
+        type: dict
+    harvesterconfig:
+        description:
+            - harvester Machine config to create in Rancher
+            - Required when type=harvester
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.harvesterconfig
+        required: false
+        type: dict
+    linodeconfig:
+        description:
+            - linode Machine config to create in Rancher
+            - Required when type=linode
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.linodeconfig
+        required: false
+        type: dict
+
+
     full_response:
         description: Whether to return full api response
         required: false
@@ -189,7 +213,7 @@ options:
 '''
 
 EXAMPLES = r'''
-# Add repository
+# create Machine Config
 - name: Test create Machine Config
   intellium.rancher.rancher_machine_config:
     state: present
@@ -250,15 +274,64 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
-        type=dict(type='str', required=True, choices=[
-            'vsphere', 'ec2', 'azure', 'digitalocean', 'harvester', 'linode']),
-        config=dict(type='dict', required=True),
+        type=dict(type='str', required=True, choices=['vsphere', 'amazonec2',
+                                                      'azure', 'digitalocean',
+                                                      'harvester', 'linode']),
+        labels=dict(type='dict', required=False),
+        vsphereconfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                cloneFrom=dict(type='str', required=True),
+                cloudConfig=dict(type='str', default="#cloud-config"),
+                cloudinit=dict(type='str', default=""),
+                contentLibrary=dict(type='str', default=""),
+                cpuCount=dict(type='str', required=True),
+                creationType=dict(type='str', default="template", choices=[
+                    'template', 'vm', 'library', 'legacy']),
+                datacenter=dict(type='str', required=True),
+                datastore=dict(type='str', required=True),
+                datastoreCluster=dict(type='str', default=""),
+                diskSize=dict(type='str', required=True),
+                folder=dict(type='str', required=True),
+                hostsystem=dict(type='str', default=""),
+                memorySize=dict(type='str', required=True),
+                network=dict(type='list', required=True, elements='str'),
+                os=dict(type='str', default="linux"),
+                vcenter=dict(type='str', default=""),
+                vcenterPort=dict(type='str', default="443"),
+            )
+        ),
+        amazonec2config=dict(
+            type='dict',
+            required=False,
+        ),
+        azureconfig=dict(
+            type='dict',
+            required=False,
+        ),
+        digitaloceanconfig=dict(
+            type='dict',
+            required=False,
+        ),
+        harvesterconfig=dict(
+            type='dict',
+            required=False,
+        ),
+        linodeconfig=dict(
+            type='dict',
+            required=False,
+        ),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
 
     module = AnsibleModule(
         argument_spec=argument_spec,
+        required_if=[
+            ("state", "present", ["type"]),
+            ("type", "vsphere", ["vsphereconfig"])
+        ],
         supports_check_mode=True,
         mutually_exclusive=[
             ('token', 'username'),
@@ -277,25 +350,14 @@ def main():
         module.params['token'] = api_login(module)
 
     # Set defaults (_ = internal use and may change)
-    typeinfo = determine_type(module)
+    after_config = build_config(module)
     _action = None
-    api_path = "v1/rke-machine-config.cattle.io." + typeinfo['type']
+    api_path = after_config['api_path']
     baseurl = f"https://{module.params['host']}/{api_path}"
     v1_id = f"{module.params['namespace']}/{module.params['name']}"
     _url = baseurl
     _before = {}
-    _after = {
-        "apiVersion": "rke-machine-config.cattle.io/v1",
-        "id": v1_id,
-        "kind": typeinfo['type'],
-        "metadata": {
-            "name": module.params['name'],
-            "namespace": module.params['namespace']
-        }
-    }
-    # Only change defined options in config
-    for item in module.params['config']:
-        _after.update({item: module.params['config'][item]})
+    _after = after_config['body']
 
     # Get all items, filtering is not possible in v1 api.
     # Using limit since we don't support pagination.
@@ -312,22 +374,28 @@ def main():
 
         if mc is not None:
             # mc exists
+            resourceVersion = mc['metadata']['resourceVersion']
             _before = {
                 "apiVersion": mc['apiVersion'],
+                "common": mc['common'],
                 "id": mc['id'],
-                "kind": typeinfo['type'],
+                "kind": mc['kind'],
+                "type": mc['type'],
                 "metadata": {
                     "name": mc['metadata']['name'],
                     "namespace": mc['metadata']['namespace'],
+                    "resourceVersion": resourceVersion
                 }
             }
-            # Only ckeck defined options in config
-            for item in module.params['config']:
+
+            _after['metadata']['resourceVersion'] = resourceVersion
+
+            # Only ckeck defined options by build_config
+            for item in after_config['config_items']:
                 try:
                     _before.update({item: mc[item]})
                 except KeyError:
                     _before.update({item: ""})
-                    g.mod_returns.update(msg=f'no config for {item} found')
 
             _url = f"{baseurl}/{v1_id}"
 
@@ -387,41 +455,72 @@ def main():
         api_exit(module)
 
 
-def determine_type(module):
+def build_config(module):
+    body = {
+        "apiVersion": "rke-machine-config.cattle.io/v1",
+        "common": {
+            "labels": {}
+        },
+        "id": f"{module.params['namespace']}/{module.params['name']}",
+        "metadata": {
+            "name": module.params['name'],
+            "namespace": module.params['namespace']
+        }
+    }
+
     _type = module.params['type']
     if _type == "vsphere":
-        typename = "vmwarevsphereconfigs"
-    elif _type == "ec2":
-        typename = "amazonec2configs"
+        body["kind"] = "VmwarevsphereConfig"
+        body["type"] = "rke-machine-config.cattle.io.vmwarevsphereconfig"
+        api_path = "v1/rke-machine-config.cattle.io.vmwarevsphereconfigs"
+        config = module.params['vsphereconfig']
+
+    elif _type == "amazonec2":
+        body["kind"] = "amazonec2configs"
+        body["type"] = "rke-machine-config.cattle.io.amazonec2config"
+        api_path = "v1/rke-machine-config.cattle.io.amazonec2configs"
+        config = module.params['amazonec2config']
+
     elif _type == "azure":
-        typename = "azureconfigs"
+        body["kind"] = "azureconfigs"
+        body["type"] = "rke-machine-config.cattle.io.azureconfig"
+        api_path = "v1/rke-machine-config.cattle.io.azureconfigs"
+        config = module.params['azureconfig']
+
     elif _type == "digitalocean":
-        typename = "digitaloceanconfigs"
+        body["kind"] = "digitaloceanconfigs"
+        body["type"] = "rke-machine-config.cattle.io.digitaloceanconfig"
+        api_path = "v1/rke-machine-config.cattle.io.digitaloceanconfigs"
+        config = module.params['digitaloceanconfig']
+
     elif _type == "harvester":
-        typename = "harvesterconfigs"
+        body["kind"] = "harvesterconfigs"
+        body["type"] = "rke-machine-config.cattle.io.harvesterconfig"
+        api_path = "v1/rke-machine-config.cattle.io.harvesterconfigs"
+        config = module.params['harvesterconfig']
+
     elif _type == "linode":
-        typename = "linodeconfigs"
+        body["kind"] = "linodeconfigs"
+        body["type"] = "rke-machine-config.cattle.io.linodeconfig"
+        api_path = "v1/rke-machine-config.cattle.io.linodeconfigs"
+        config = module.params['linodeconfig']
+
     else:
         g.mod_returns.update(changed=False,
                              msg=_type
                              + ' type not supported')
         api_exit(module, 'fail')
 
-    body = {
-        "metadata": {
-            "name": module.params['name'],
-            "namespace": module.params['namespace']
-        },
-        "apiVersion": "rke-machine-config.cattle.io/v1"
-    }
+    # Create config
+    for item in config:
+        body.update({item: config[item]})
 
-    configitems = {}
-    for item in module.params['config']:
-        configitems.update({item: module.params['config'][item]})
+    # Set labels if defined
+    if module.params['labels'] is not None:
+        for k, v in module.params['labels'].items():
+            body["common"]["labels"][k] = v
 
-    body.update({typename: configitems})
-
-    return {"body": body, "type": typename}
+    return {"body": body, "api_path": api_path, "config_items": config}
 
 
 if __name__ == '__main__':
