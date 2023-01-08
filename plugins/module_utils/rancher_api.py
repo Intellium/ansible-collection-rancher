@@ -106,24 +106,28 @@ def check_req(r, module):
     if r['status'] in (200, 201, 202, 204):
         # v3 api supports filtering giving a list of data objects
         try:
-            g.mod_returns.update(output=r['json']['data'][0])
+            _out = r['json']['data'][0]
         except KeyError:
             try:
-                g.mod_returns.update(output=r['json'])
+                _out = r['json']
             except BaseException:
-                g.mod_returns.update(output={})
+                _out = {}
         except BaseException:
-            g.mod_returns.update(output={})
+            _out = {}
+        g.mod_returns.update(output=_out)
 
         try:
-            g.mod_returns.update(id=r['json']['data'][0]['id'])
-        except KeyError:
-            try:
-                g.mod_returns.update(id=r['json']['id'])
-            except BaseException:
-                g.mod_returns.update(id="")
+            g.mod_returns.update(id=_out['id'])
         except BaseException:
-            g.mod_returns.update(output={})
+            g.mod_returns.update(id="")
+
+        try:
+            g.mod_returns.update(
+                idcol=f"{_out['metadata']['namespace']}:\
+{_out['metadata']['name']}"
+            )
+        except BaseException:
+            g.mod_returns.update(idcol="")
 
         retval = True
     elif r['status'] == 401:
@@ -278,7 +282,6 @@ def v1_diff_object(module, url, id, config):
             resourceVersion = getobj['metadata']['resourceVersion']
             _before = {
                 "apiVersion": getobj['apiVersion'],
-                "common": getobj['common'],
                 "id": getobj['id'],
                 "kind": getobj['kind'],
                 "type": getobj['type'],
@@ -288,7 +291,7 @@ def v1_diff_object(module, url, id, config):
                     "resourceVersion": resourceVersion
                 }
             }
-            _after = config['body']
+
             _after['metadata']['resourceVersion'] = resourceVersion
 
             # Only ckeck defined options by build_config
