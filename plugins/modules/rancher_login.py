@@ -59,7 +59,7 @@ EXAMPLES = r'''
     password: mysecretpassword
     full_response: true
     validate_certs: false
-  register: login_out
+  register: login
 '''
 
 RETURN = r'''

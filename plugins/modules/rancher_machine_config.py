@@ -218,17 +218,19 @@ EXAMPLES = r'''
   intellium.rancher.rancher_machine_config:
     state: present
     host: rancher.example.com
-    token: "{{ login_out['token'] }}"
-    name: "vsphere"
+    token: "{{ login['token'] }}"
+    name: "vsphere_mc_1"
     type: vsphere
-    config:
+    vsphereconfig:
         cloneFrom: "Ubuntu"
+        cpuCount: "4"
         datacenter: "dc-example"
         datastore: "ds-example"
-        folder: "example"
-        cpuCount: "4"
         diskSize: "20480"
+        folder: "example"
         memorySize: "4096"
+        network: ["VM Network"]
+        vcenter: "172.17.0.22"
     full_response: true
     validate_certs: false
 '''
@@ -238,6 +240,10 @@ RETURN = r'''
 # use other names for return values.
 id:
     description: The ID of the machine config
+    type: dict
+    returned: always
+idcol:
+    description: The ID of the machine config separated by colon
     type: dict
     returned: always
 output:
@@ -252,8 +258,6 @@ full_response:
 
 import json
 
-# from ansible.module_utils.common.dict_transformations \
-#     import recursive_diff, dict_merge
 from ansible.module_utils.basic import AnsibleModule, sanitize_keys
 from ansible.module_utils._text import to_native, to_text
 
@@ -349,7 +353,7 @@ def main():
     if not module.params['token']:
         module.params['token'] = api_login(module)
 
-    # Set defaults (_ = internal use and may change)
+    # Set defaults
     after_config = build_config(module)
     # _action = None
     api_path = after_config['api_path']
@@ -399,38 +403,37 @@ def build_config(module):
         }
     }
 
-    _type = module.params['type']
-    if _type == "vsphere":
+    if module.params['type'] == "vsphere":
         body["kind"] = "VmwarevsphereConfig"
         body["type"] = "rke-machine-config.cattle.io.vmwarevsphereconfig"
         api_path = "v1/rke-machine-config.cattle.io.vmwarevsphereconfigs"
         config = module.params['vsphereconfig']
 
-    elif _type == "amazonec2":
+    elif module.params['type'] == "amazonec2":
         body["kind"] = "amazonec2configs"
         body["type"] = "rke-machine-config.cattle.io.amazonec2config"
         api_path = "v1/rke-machine-config.cattle.io.amazonec2configs"
         config = module.params['amazonec2config']
 
-    elif _type == "azure":
+    elif module.params['type'] == "azure":
         body["kind"] = "azureconfigs"
         body["type"] = "rke-machine-config.cattle.io.azureconfig"
         api_path = "v1/rke-machine-config.cattle.io.azureconfigs"
         config = module.params['azureconfig']
 
-    elif _type == "digitalocean":
+    elif module.params['type'] == "digitalocean":
         body["kind"] = "digitaloceanconfigs"
         body["type"] = "rke-machine-config.cattle.io.digitaloceanconfig"
         api_path = "v1/rke-machine-config.cattle.io.digitaloceanconfigs"
         config = module.params['digitaloceanconfig']
 
-    elif _type == "harvester":
+    elif module.params['type'] == "harvester":
         body["kind"] = "harvesterconfigs"
         body["type"] = "rke-machine-config.cattle.io.harvesterconfig"
         api_path = "v1/rke-machine-config.cattle.io.harvesterconfigs"
         config = module.params['harvesterconfig']
 
-    elif _type == "linode":
+    elif module.params['type'] == "linode":
         body["kind"] = "linodeconfigs"
         body["type"] = "rke-machine-config.cattle.io.linodeconfig"
         api_path = "v1/rke-machine-config.cattle.io.linodeconfigs"
@@ -438,7 +441,7 @@ def build_config(module):
 
     else:
         g.mod_returns.update(changed=False,
-                             msg=_type
+                             msg=module.params['type']
                              + ' type not supported')
         api_exit(module, 'fail')
 
@@ -446,12 +449,15 @@ def build_config(module):
     for item in config:
         body.update({item: config[item]})
 
+    config_items = config
+    config_items.update({"common": ""})  # not in config or v1_diff_object
+
     # Set labels if defined
     if module.params['labels'] is not None:
         for k, v in module.params['labels'].items():
             body["common"]["labels"][k] = v
 
-    return {"body": body, "api_path": api_path, "config_items": config}
+    return {"body": body, "api_path": api_path, "config_items": config_items}
 
 
 if __name__ == '__main__':

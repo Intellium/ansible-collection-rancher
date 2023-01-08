@@ -199,7 +199,7 @@ EXAMPLES = r'''
 - name: Test create cc
   intellium.rancher.rancher_cloud_credential:
     host: rancher.example.com
-    token: "{{ login_out['token'] }}"
+    token: "{{ login['token'] }}"
     name: "mycred"
     type: vsphere
     config:
@@ -218,6 +218,10 @@ RETURN = r'''
 # and in general should use other names for return values.
 id:
     description: The ID of the cloud credential
+    type: dict
+    returned: always
+idcol:
+    description: The ID of the cloud credential separated by colon
     type: dict
     returned: always
 output:
