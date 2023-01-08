@@ -20,9 +20,6 @@ from ansible.module_utils.six import PY2, PY3, binary_type, iteritems
 from ansible.module_utils._text import to_native, to_text
 from ansible.module_utils.urls import fetch_url, url_argument_spec
 
-# from ansible.module_utils.common.arg_spec import ArgumentSpecValidator
-# from ansible.module_utils.common.validation import check_mutually_exclusive
-
 
 def api_req(module, url='', body='', body_format='json', method='GET',
             headers=None, auth=''):
