@@ -149,15 +149,6 @@ options:
                 description: quantity
                 type: int
                 default: 3
-    machineSelectorConfig:
-        description: machineSelectorConfig
-        required: false
-        type: dict
-        suboptions:
-            config:
-                description: machineSelectorConfig
-                type: dict
-                required: false
     upgradeStrategy:
         description: upgradeStrategy
         required: false
@@ -203,14 +194,13 @@ EXAMPLES = r'''
         machineConfigRef:
             name: "cl01-master"
         name: "masters"
-        quantity: 3
         workerRole: False
-      - controlPlaneRole: False
-        displayName: "workers"
+        quantity: 3
+      - displayName: "workers"
         machineConfigRef:
             name: "cl01-worker"
         name: "workers"
-        workerRole: True
+        controlPlaneRole: False
         quantity: 8
     full_response: true
     validate_certs: false
@@ -261,7 +251,8 @@ def main():
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
         type=dict(type='str', default="vsphere", choices=[
-            'vsphere', 'amazonec2', 'azure', 'digitalocean', 'harvester', 'linode']),
+            'vsphere', 'amazonec2', 'azure', 'digitalocean',
+            'harvester', 'linode']),
         vsphereconfig=dict(
             type='dict',
             required=False,
@@ -295,13 +286,6 @@ def main():
                 name=dict(type='str', default=None),
                 workerRole=dict(type='bool', default=True),
                 quantity=dict(type='int', default="3")
-            )
-        ),
-        machineSelectorConfig=dict(
-            type='dict',
-            required=False,
-            options=dict(
-                config=dict(type='dict', required=False)
             )
         ),
         upgradeStrategy=dict(
@@ -415,7 +399,6 @@ def build_config(module):
                 },
                 "machineSelectorConfig": [{
                     "config": {
-                        "cloud-provider-name": "rancher-vsphere",
                         "protect-kernel-defaults": "false"
                     }
                 }],
@@ -484,6 +467,12 @@ def build_config(module):
                         "username": config['username'],
                     }
                 }})
+
+        body["spec"]["rkeConfig"]["machineSelectorConfig"][0]["config"].\
+            update({
+                "cloud-provider-name": "rancher-vsphere"
+            })
+
     elif module.params['type'] == "azure":
         body["spec"]["rkeConfig"]['chartValues'] = {}
     else:
@@ -501,31 +490,29 @@ def build_config(module):
     if module.params['machinePools'] is not None:
         config = module.params['machinePools']
         for item in config:
-            i = item
+            i = {}
             i.update({
-                "cloudCredentialSecretName": module.params['cloud_credential']
+                "cloudCredentialSecretName": module.params['cloud_credential'],
+                "displayName": item['displayName'],
+                "etcdRole": item['etcdRole'],
+                "machineConfigRef": item['machineConfigRef'],
+                "name": item['name'],
+                "quantity": item['quantity']
             })
-            body["spec"]["rkeConfig"]["machinePools"].append(item)
+
+            if item['controlPlaneRole']:
+                i.update({
+                    "controlPlaneRole": True
+                })
+            if item['workerRole']:
+                i.update({
+                    "workerRole": True
+                })
+
+            body["spec"]["rkeConfig"]["machinePools"].append(i)
 
     else:
         body["spec"]["rkeConfig"]['machinePools'] = {}
-
-    # machineSelectorConfig
-    if module.params['machineSelectorConfig'] is not None:
-        config = module.params['machineSelectorConfig']
-        for item in config:
-            body["spec"]["rkeConfig"]["machineSelectorConfig"].update(
-                {item: config[item]}
-            )
-    else:
-        body["spec"]["rkeConfig"]['machineSelectorConfig'] = [
-            {
-                "config": {
-                    "cloud-provider-name": "rancher-vsphere",
-                    "protect-kernel-defaults": 'false'
-                }
-            }
-        ]
 
     config_items = {"spec": {}}
     return {"body": body, "api_path": api_path, "config_items": config_items}
