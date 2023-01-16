@@ -68,6 +68,7 @@ options:
             - 'amazonec2'
             - 'azure'
             - 'digitalocean'
+            - 'google'
             - 'harvester'
             - 'linode'
 
@@ -97,6 +98,54 @@ options:
                 description:
                     - vSphere csi_datastoreurl
                 type: str
+    amazonec2config:
+        description:
+            - amazonec2 Cluster config to create in Rancher
+            - Required when type=amazonec2
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.amazonec2config
+        required: false
+        type: dict
+    azureconfig:
+        description:
+            - azure Cluster config to create in Rancher
+            - Required when type=azure
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.azureconfig
+        required: false
+        type: dict
+    digitaloceanconfig:
+        description:
+            - digitalocean Cluster config to create in Rancher
+            - Required when type=digitalocean
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.digitaloceanconfig
+        required: false
+        type: dict
+    googleconfig:
+        description:
+            - google Cluster config to create in Rancher
+            - Required when type=google
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.googleconfig
+        required: false
+        type: dict
+    harvesterconfig:
+        description:
+            - harvester Cluster config to create in Rancher
+            - Required when type=harvester
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.harvesterconfig
+        required: false
+        type: dict
+    linodeconfig:
+        description:
+            - linode Cluster config to create in Rancher
+            - Required when type=linode
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.linodeconfig
+        required: false
+        type: dict
     cni:
         description: cni
         default: 'calico'
@@ -251,7 +300,7 @@ def main():
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
         type=dict(type='str', default="vsphere", choices=[
-            'vsphere', 'amazonec2', 'azure', 'digitalocean',
+            'vsphere', 'amazonec2', 'azure', 'digitalocean', 'google',
             'harvester', 'linode']),
         vsphereconfig=dict(
             type='dict',
@@ -263,6 +312,30 @@ def main():
                 password=dict(type='str', required=False, no_log=True),
                 csi_datastoreurl=dict(type='str', required=False)
             )
+        ),
+        amazonec2config=dict(
+            type='dict',
+            required=False,
+        ),
+        azureconfig=dict(
+            type='dict',
+            required=False,
+        ),
+        digitaloceanconfig=dict(
+            type='dict',
+            required=False,
+        ),
+        googleconfig=dict(
+            type='dict',
+            required=False,
+        ),
+        harvesterconfig=dict(
+            type='dict',
+            required=False,
+        ),
+        linodeconfig=dict(
+            type='dict',
+            required=False,
         ),
         cni=dict(type='str', default="calico"),
         cloud_credential=dict(type='str', required=True),
@@ -302,6 +375,15 @@ def main():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
+        required_if=[
+            ("type", "vsphere", ["vsphereconfig"]),
+            ("type", "ec2", ["amazonec2config"]),
+            ("type", "azure", ["azureconfig"]),
+            ("type", "digitalocean", ["vsphereconfig"]),
+            ("type", "google", ["googleconfig"]),
+            ("type", "harvester", ["harvesterconfig"]),
+            ("type", "linode", ["linodeconfig"])
+        ],
         supports_check_mode=True,
         mutually_exclusive=[
             ('token', 'username'),
@@ -321,7 +403,6 @@ def main():
 
     # Set defaults
     after_config = build_config(module)
-    # _action = None
     api_path = after_config['api_path']
     baseurl = f"https://{module.params['host']}/{api_path}"
     v1_id = f"{module.params['namespace']}/{module.params['name']}"

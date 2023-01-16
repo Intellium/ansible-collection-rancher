@@ -69,6 +69,7 @@ options:
             - 'amazonec2'
             - 'azure'
             - 'digitalocean'
+            - 'google'
             - 'harvester'
             - 'linode'
 
@@ -187,6 +188,14 @@ options:
             - v1/schemas/rke-machine-config.cattle.io.digitaloceanconfig
         required: false
         type: dict
+    googleconfig:
+        description:
+            - google Machine config to create in Rancher
+            - Required when type=google
+            - for valid subopions check schema at
+            - v1/schemas/rke-machine-config.cattle.io.googleconfig
+        required: false
+        type: dict
     harvesterconfig:
         description:
             - harvester Machine config to create in Rancher
@@ -283,9 +292,9 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
-        type=dict(type='str', required=True, choices=['vsphere', 'amazonec2',
-                                                      'azure', 'digitalocean',
-                                                      'harvester', 'linode']),
+        type=dict(type='str', required=True, choices=[
+            'vsphere', 'amazonec2', 'azure', 'digitalocean', 'google',
+            'harvester', 'linode']),
         labels=dict(type='dict', required=False),
         vsphereconfig=dict(
             type='dict',
@@ -328,6 +337,10 @@ def main():
             type='dict',
             required=False,
         ),
+        googleconfig=dict(
+            type='dict',
+            required=False,
+        ),
         harvesterconfig=dict(
             type='dict',
             required=False,
@@ -343,8 +356,13 @@ def main():
     module = AnsibleModule(
         argument_spec=argument_spec,
         required_if=[
-            ("state", "present", ["type"]),
-            ("type", "vsphere", ["vsphereconfig"])
+            ("type", "vsphere", ["vsphereconfig"]),
+            ("type", "ec2", ["amazonec2config"]),
+            ("type", "azure", ["azureconfig"]),
+            ("type", "digitalocean", ["vsphereconfig"]),
+            ("type", "google", ["googleconfig"]),
+            ("type", "harvester", ["harvesterconfig"]),
+            ("type", "linode", ["linodeconfig"])
         ],
         supports_check_mode=True,
         mutually_exclusive=[
@@ -365,7 +383,6 @@ def main():
 
     # Set defaults
     after_config = build_config(module)
-    # _action = None
     api_path = after_config['api_path']
     baseurl = f"https://{module.params['host']}/{api_path}"
     v1_id = f"{module.params['namespace']}/{module.params['name']}"

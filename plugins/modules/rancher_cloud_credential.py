@@ -70,100 +70,114 @@ options:
             - 'linode'
             - 's3'
 
-    config:
-        description:
-            - Cloud Credential to create in Rancher
-            - Suboptions must be capitilazed correctly!
-        required: true
+    labels:
+        description: labels
+        required: False
+        type: dict
+
+    annotations:
+        description: annotations
+        required: False
+        type: dict
+
+    vsphereconfig:
+        description: vsphere Cloud Credential to create in Rancher
+        required: false
         type: dict
         suboptions:
-            vcenter:
-                description:
-                    - vSphere IP/hostname for vCenter
-                    - Required when type=vsphere
-                type: str
-
-            username:
-                description:
-                    - vSphere username
-                    - Required when type=vsphere
-                type: str
-
             password:
                 description:
                     - vSphere Password
                     - Required when type=vsphere
                 type: str
-
+            username:
+                description:
+                    - vSphere username
+                    - Required when type=vsphere
+                type: str
+            vcenter:
+                description:
+                    - vSphere IP/hostname for vCenter
+                    - Required when type=vsphere
+                type: str
             vcenterPort:
                 description:
                     - vSphere Port number for vCenter
                 default: "443"
                 type: str
 
+    amazonec2config:
+        description: amazon ec2 Cloud Credential to create in Rancher
+        required: false
+        type: dict
+        suboptions:
             defaultRegion:
                 description:
-                    - S3 / AWS EC2 Region
+                    - AWS EC2 Region
                 required: false
                 default: ""
                 type: str
 
             accessKey:
                 description:
-                    - S3 / AWS EC2 Access Key
+                    - AWS EC2 Access Key
                     - Required when type=ec2 or s3
                 type: str
 
             secretKey:
                 description:
-                    - S3 / AWS EC2 Secret Key
+                    - AWS EC2 Secret Key
                     - Required when type=ec2 or s3
                 type: str
 
-            defaultBucket:
-                description:
-                    - S3 bucket
-                    - Required when type=s3
+    azureconfig:
+        description: azure Cloud Credential to create in Rancher
+        required: false
+        type: dict
+        suboptions:
+            clientId:
+                description: clientId
+                type: str
+            clientSecret:
+                description: clientSecret
+                type: str
+            environment:
+                description: environment
+                type: str
+            subscriptionId:
+                description: subscriptionId
+                type: str
+            tenantId:
+                description: tenantId
                 type: str
 
-            defaultEndpoint:
-                description:
-                    - S3 endpoint
-                type: str
-
-            defaultEndpointCA:
-                description:
-                    - S3 endpointca
-                type: str
-
-            defaultFolder:
-                description:
-                    - S3 folder
-                type: str
-
-            defaultSkipSSLVerify:
-                description:
-                    - S3 skipsslverify
-                type: str
-
+    digitaloceanconfig:
+        description: Digital Ocean Cloud Credential to create in Rancher
+        required: false
+        type: dict
+        suboptions:
             accessToken:
                 description:
                     - Digital Ocean API access token
                     - Required when type=digitalocean
                 type: str
 
-            token:
-                description:
-                    - Linode API access token
-                    - Required when type=linode
-                type: str
-
+    googleconfig:
+        description: google Cloud Credential to create in Rancher
+        required: false
+        type: dict
+        suboptions:
             authEncodedJson:
                 description:
                     - File contents for authEncodedJson
                     - Required when type=google
                 type: str
 
+    harvesterconfig:
+        description: harvester Cloud Credential to create in Rancher
+        required: false
+        type: dict
+        suboptions:
             clusterId:
                 description:
                     - harvester cluster id
@@ -182,6 +196,59 @@ options:
                     - Required when type=harvester
                 type: str
 
+    linodeconfig:
+        description: linode Cloud Credential to create in Rancher
+        required: false
+        type: dict
+        suboptions:
+            token:
+                description:
+                    - Linode API access token
+                    - Required when type=linode
+                type: str
+
+    s3config:
+        description: s3 Cloud Credential to create in Rancher
+        required: false
+        type: dict
+        suboptions:
+            defaultRegion:
+                description:
+                    - S3 EC2 Region
+                required: false
+                default: ""
+                type: str
+            accessKey:
+                description:
+                    - S3 EC2 Access Key
+                    - Required when type=ec2 or s3
+                type: str
+            secretKey:
+                description:
+                    - S3 EC2 Secret Key
+                    - Required when type=ec2 or s3
+                type: str
+            defaultBucket:
+                description:
+                    - S3 bucket
+                    - Required when type=s3
+                type: str
+            defaultEndpoint:
+                description:
+                    - S3 endpoint
+                type: str
+            defaultEndpointCA:
+                description:
+                    - S3 endpointca
+                type: str
+            defaultFolder:
+                description:
+                    - S3 folder
+                type: str
+            defaultSkipSSLVerify:
+                description:
+                    - S3 skipsslverify
+                type: str
     full_response:
         description: Whether to return full api response
         required: false
@@ -202,7 +269,7 @@ EXAMPLES = r'''
     token: "{{ login['token'] }}"
     name: "mycred"
     type: vsphere
-    config:
+    vsphereconfig:
         vcenter: "vcenter.example.com"
         username: "myuser"
         password: "mysecretpass"
@@ -235,55 +302,13 @@ full_response:
 '''
 
 import json
-import base64
 
-from ansible.module_utils.basic import AnsibleModule, sanitize_keys
-from ansible.module_utils._text import to_native, to_text
-from ansible.module_utils.common.dict_transformations \
-    import recursive_diff, dict_merge
+from ansible.module_utils.basic import AnsibleModule
 
 import ansible_collections.intellium.rancher.plugins.module_utils.\
     rancher_globals as g
 from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
-    import api_req, api_login, api_exit
-
-
-def credential_object(module):
-    # credential = module.params['config']
-    if module.params['type'] == "vsphere":
-        typename = "vmwarevspherecredentialConfig"
-    elif module.params['type'] == "ec2":
-        typename = "amazonec2credentialConfig"
-    elif module.params['type'] == "azure":
-        typename = "azurecredentialConfig"
-    elif module.params['type'] == "digitalocean":
-        typename = "digitaloceancredentialConfig"
-    elif module.params['type'] == "google":
-        typename = "googlecredentialConfig"
-    elif module.params['type'] == "harvester":
-        typename = "harvestercredentialConfig"
-    elif module.params['type'] == "linode":
-        typename = "linodecredentialConfig"
-    elif module.params['type'] == "s3":
-        typename = "s3credentialConfig"
-    else:
-        g.mod_returns.update(changed=False,
-                             msg=module.params['type']
-                             + ' credential type not supported')
-        api_exit(module, 'fail')
-
-    body = {
-        "name": module.params['name'],
-        "type": "cloudcredential"
-    }
-
-    configitems = {}
-    for item in module.params['config']:
-        configitems.update({item: module.params['config'][item]})
-
-    body.update({typename: configitems})
-
-    return {"body": body, "type": typename}
+    import api_req, api_login, api_exit, v3_diff_object
 
 
 def main():
@@ -296,16 +321,101 @@ def main():
         username=dict(type='str', aliases=['rancher_username']),
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
-        config=dict(type='dict', required=True),
         type=dict(type='str', required=True, choices=[
             'vsphere', 'ec2', 'azure', 'digitalocean', 'google',
             'harvester', 'linode', 's3']),
+        labels=dict(type='dict', required=False),
+        annotations=dict(type='dict', required=False),
+        vsphereconfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                password=dict(type='str', no_log=True),
+                username=dict(type='str'),
+                vcenter=dict(type='str'),
+                vcenterPort=dict(type='str', default="443"),
+            )
+        ),
+        amazonec2config=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                defaultRegion=dict(type='str'),
+                accessKey=dict(type='str', no_log=True),
+                secretKey=dict(type='str', no_log=True),
+            )
+        ),
+        azureconfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                clientId=dict(type='str'),
+                clientSecret=dict(type='str', no_log=True),
+                environment=dict(type='str'),
+                subscriptionId=dict(type='str'),
+                tenantId=dict(type='str'),
+            )
+        ),
+        digitaloceanconfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                accessToken=dict(type='str', no_log=True)
+            )
+        ),
+        googleconfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                authEncodedJson=dict(type='str', no_log=True)
+            )
+        ),
+        harvesterconfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                clusterId=dict(type='str'),
+                clusterType=dict(type='str'),
+                kubeconfigContent=dict(type='str', no_log=True),
+            )
+        ),
+        linodeconfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                token=dict(type='str', no_log=True)
+            )
+        ),
+        s3config=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                defaultRegion=dict(type='str'),
+                accessKey=dict(type='str', no_log=True),
+                secretKey=dict(type='str', no_log=True),
+                defaultBucket=dict(type='str'),
+                defaultEndpoint=dict(type='str'),
+                defaultEndpointCA=dict(type='str'),
+                defaultFolder=dict(type='str'),
+                defaultSkipSSLVerify=dict(type='str'),
+            )
+        ),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
 
     module = AnsibleModule(
         argument_spec=argument_spec,
+        required_if=[
+            ("type", "vsphere", ["vsphereconfig"]),
+            ("type", "ec2", ["amazonec2config"]),
+            ("type", "azure", ["azureconfig"]),
+            ("type", "digitalocean", ["vsphereconfig"]),
+            ("type", "google", ["googleconfig"]),
+            ("type", "harvester", ["harvesterconfig"]),
+            ("type", "linode", ["linodeconfig"]),
+            ("type", "s3", ["s3config"])
+        ],
         supports_check_mode=True,
         mutually_exclusive=[
             ('token', 'username'),
@@ -323,108 +433,28 @@ def main():
     if not module.params['token']:
         module.params['token'] = api_login(module)
 
-    # Set defaults (_ = internal use and may change)
-    _action = None
-    api_path = "v3/cloudcredentials"
+    # Set defaults
+    after_config = build_config(module)
+    api_path = after_config['api_path']
     baseurl = f"https://{module.params['host']}/{api_path}"
-    _url = baseurl
-    _before = {}
-    ccparams = credential_object(module)
-    cctype = ccparams['type']
-    _after = ccparams['body']
 
-    # Get current cc if it exists
-    get, content = api_req(
-        module,
-        url=f"{baseurl}/?name={module.params['name']}",
-        method='GET',
-        auth=module.params['token']
-    )
-
-    # check if CC by this name exists
-    if get['status'] in (200, 201) and len(get['json']['data']) > 0:
-        # CC exists
-        if module.params['state'] == 'absent':
-            g.mod_returns.update(changed=True)
-            _action = 'DELETE'
-            _url = f"{baseurl}/{get['json']['data'][0]['id']}"
-            _before = get['json']['data'][0]
-            _after = {}
-
-        else:
-            # Check the type
-            if cctype in get['json']['data'][0]:
-                # Get secret
-                sr, content = api_req(
-                    module,
-                    url='https://%s/v1/secrets/%s' % (
-                        module.params['host'],
-                        get['json']['data'][0]['id'].replace(':', '/')),
-                    method='GET',
-                    auth=module.params['token']
-                )
-                sr_data = sr['json']['data']
-
-                if sr['status'] in (200, 201) and len(sr['json']['data']) > 0:
-                    for key in list(sr_data):
-                        k_new = key.replace(
-                            cctype + '-', '')
-                        sr_data[k_new] = to_text(
-                            base64.b64decode(sr_data.pop(key)))
-
-                # Merge config found in secret and in cloudconfig and diff
-                cclive_config = dict_merge(
-                    get['json']['data'][0][cctype],
-                    sr_data)
-
-                _before = {
-                    "name": get['json']['data'][0]['name'],
-                    "type": "cloudcredential",
-                    cctype: cclive_config
-                }
-            else:
-                # Something went wrong
-                g.mod_returns.update(
-                    changed=False, msg='Changing secret type is not supported')
-                api_exit(module, 'fail')
-
-            diff_result = recursive_diff(_before, _after)
-
-            if diff_result is not None:
-                g.mod_returns.update(changed=True)
-                _action = 'PUT'
-                _url = f"{baseurl}/{get['json']['data'][0]['id']}"
-
-    elif get['status'] in (200, 201) and len(get['json']['data']) < 1:
-        # CC doesn't exist
-        if module.params['state'] == 'absent':
-            g.mod_returns.update(changed=False)
-            api_exit(module)
-        elif module.params['state'] == 'present':
-            g.mod_returns.update(changed=True)
-            _action = 'POST'
-
-    else:
-        # Something went wrong
-        g.mod_returns.update(
-            changed=False, msg='Something went wrong. Unexpected response: '
-                               + to_text(g.last_response))
-        api_exit(module, 'fail')
+    do = v3_diff_object(module, url=baseurl, config=after_config,
+                        secrets=["password"])
 
     if module._diff:
-        g.mod_returns.update(diff=dict(before=_before, after=_after))
+        g.mod_returns.update(diff=dict(before=do["before"], after=do["after"]))
 
     if module.check_mode:
         api_exit(module)
 
-    elif _action is not None:
+    elif do["action"] is not None:
         # Make the request
         action_req, content = api_req(
             module,
-            url=_url,
-            body=json.dumps(_after, sort_keys=True),
+            url=do["url"],
+            body=json.dumps(do["after"], sort_keys=True),
             body_format='json',
-            method=_action,
+            method=do["action"],
             auth=module.params['token']
         )
 
@@ -437,6 +467,81 @@ def main():
 
     else:
         api_exit(module)
+
+
+def build_config(module):
+    api_path = "v3/cloudcredentials"
+    body = {
+        "name": module.params['name'],
+        "baseType": "cloudCredential",
+        "type": "cloudCredential",
+    }
+
+    if module.params['type'] == "vsphere":
+        _type = "vmwarevspherecredentialConfig"
+        body[_type] = {}
+        config = module.params['vsphereconfig']
+
+    elif module.params['type'] == "amazonec2":
+        _type = "ramazonec2credentialConfig"
+        body[_type] = {}
+        config = module.params['amazonec2config']
+
+    elif module.params['type'] == "azure":
+        _type = "azurecredentialConfig"
+        body[_type] = {}
+        config = module.params['azureconfig']
+
+    elif module.params['type'] == "digitalocean":
+        _type = "digitaloceancredentialConfig"
+        body[_type] = {}
+        config = module.params['digitaloceanconfig']
+
+    elif module.params['type'] == "google":
+        _type = "googlecredentialConfig"
+        body[_type] = {}
+        config = module.params['googleconfig']
+
+    elif module.params['type'] == "harvester":
+        _type = "harvestercredentialConfig"
+        body[_type] = {}
+        config = module.params['harvesterconfig']
+
+    elif module.params['type'] == "linode":
+        _type = "linodecredentialConfig"
+        body[_type] = {}
+        config = module.params['linodeconfig']
+
+    elif module.params['type'] == "s3":
+        _type = "s3credentialConfig"
+        body[_type] = {}
+        config = module.params['s3config']
+
+    else:
+        g.mod_returns.update(changed=False,
+                             msg=module.params['type']
+                             + ' type not supported')
+        api_exit(module, 'fail')
+
+    # Create config
+    for item in config:
+        body[_type].update({item: config[item]})
+
+    config_items = {}
+    config_items = config
+
+    # Set annotations if defined
+    if module.params['annotations'] is not None:
+        for k, v in module.params['annotations'].items():
+            body["annotations"][k] = v
+
+    # Set labels if defined
+    if module.params['labels'] is not None:
+        for k, v in module.params['labels'].items():
+            body["common"]["labels"][k] = v
+
+    return {"body": body, "api_path": api_path, "config_items": config_items,
+            "config_type": _type}
 
 
 if __name__ == '__main__':

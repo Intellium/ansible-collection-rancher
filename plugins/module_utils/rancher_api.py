@@ -9,7 +9,7 @@ __metaclass__ = type
 
 import datetime
 import json
-import os
+import base64
 
 # Globals
 import ansible_collections.intellium.rancher.plugins.module_utils.\
@@ -336,6 +336,120 @@ def v1_diff_object(module, url, id, config):
     retval = {}
     retval["before"] = _before
     retval["after"] = _after
+    retval["action"] = _action
+    retval["url"] = _url
+
+    return retval
+
+
+def v3_diff_object(module, url, config, secrets=None):
+    # Set defaults
+    _action = None
+    _url = url
+    _before = {}
+    _after = config['body']
+
+    if secrets is None:
+        secrets = []
+
+    get, content = api_req(
+        module,
+        url=f"{url}/?name={module.params['name']}",
+        method='GET',
+        auth=module.params['token']
+    )
+
+    # check if resource by this name exists
+    if get['status'] in (200, 201) and len(get['json']['data']) > 0:
+        getobj = get['json']['data'][0]
+
+        if getobj is not None:
+            # resource exists
+            id = getobj['id']
+            _before = {
+                "baseType": getobj['baseType'],
+                "name": getobj['name'],
+                "type": getobj['type'],
+            }
+
+            # Fetch secrets
+            secid = id.replace(':', '/')
+            securl = f"https://{module.params['host']}/v1/secrets/{secid}"
+            secrets_decoded = {}
+            for name in secrets:
+                try:
+                    getsecret, content = api_req(
+                        module,
+                        url=securl,
+                        method='GET',
+                        auth=module.params['token']
+                    )
+                    object_name = f"{config['config_type']}-{name}"
+                    secret_value = to_text(base64.b64decode(
+                        getsecret['json']['data'][object_name]))
+
+                    secrets_decoded[name] = secret_value
+                except BaseException:
+                    secrets_decoded[name] = ""
+
+            # Only ckeck defined options by build_config
+            if config['config_type'] is not None:
+                _type = config['config_type']
+                _before[_type] = {}
+                for item in config['config_items']:
+                    if item in secrets:
+                        _before[_type].update({item: secrets_decoded[item]})
+                    else:
+                        try:
+                            _before[_type].update({item: getobj[_type][item]})
+                        except KeyError:
+                            _before[_type].update({item: ""})
+            else:
+                for item in config['config_items']:
+                    if item in secrets:
+                        _before[_type].update({item: secrets[item]})
+                    else:
+                        try:
+                            _before.update({item: getobj[item]})
+                        except KeyError:
+                            _before.update({item: ""})
+
+            # URL for updating includes the id
+            _url = f"{url}/{id}"
+
+            if module.params['state'] == 'absent':
+                g.mod_returns.update(changed=True)
+                _action = 'DELETE'
+                _after = {}
+
+            else:
+                diff_result = recursive_diff(_before, _after)
+                if diff_result is not None:
+                    g.mod_returns.update(changed=True)
+                    _action = 'PUT'
+
+        else:
+            # mc doesn't exist
+            if module.params['state'] == 'absent':
+                g.mod_returns.update(changed=False)
+                api_exit(module)
+
+            elif module.params['state'] == 'present':
+                g.mod_returns.update(changed=True)
+                _action = 'POST'
+
+    else:
+        # Something went wrong
+        g.mod_returns.update(
+            changed=False, msg='Something went wrong. Unexpected response: '
+                               + to_text(g.last_response))
+        api_exit(module, 'fail')
+
+    # Set return values
+    retval = {}
+    retval["before"] = _before
+    retval["after"] = _after
+    retval["diff"] = diff_result
     retval["action"] = _action
     retval["url"] = _url
 
