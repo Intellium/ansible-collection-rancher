@@ -84,6 +84,11 @@ options:
         required: false
         type: dict
         suboptions:
+            cfgparam:
+                description: vSphere cfgparam
+                type: list
+                elements: str
+                default: ["disk.enableUUID=TRUE"]
             cloneFrom:
                 description: clone VM From template or VM
                 type: str
@@ -230,7 +235,7 @@ EXAMPLES = r'''
         folder: "example"
         memorySize: "4096"
         network: ["VM Network"]
-        vcenter: "172.17.0.22"
+        vcenter: "vcenter.example.com"
     full_response: true
     validate_certs: false
 '''
@@ -286,6 +291,11 @@ def main():
             type='dict',
             required=False,
             options=dict(
+                cfgparam=dict(
+                    type='list',
+                    elements='str',
+                    default=["disk.enableUUID=TRUE"]
+                ),
                 cloneFrom=dict(type='str', required=True),
                 cloudConfig=dict(type='str', default="#cloud-config"),
                 cloudinit=dict(type='str', default=""),
