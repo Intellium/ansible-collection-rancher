@@ -7,9 +7,10 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
+import base64
 import datetime
 import json
-import base64
+import time
 
 # Globals
 import ansible_collections.intellium.rancher.plugins.module_utils.\
@@ -52,7 +53,7 @@ def api_req(module, url='', body='', body_format='json', method='GET',
     # Fetch content from request
     try:
         content = resp.read()
-    except AttributeError:
+    except BaseException:
         content = info.pop('body', '')
 
     # Construct output
@@ -153,6 +154,35 @@ def check_req(r, module):
         g.mod_returns.update(stderr_lines=r)
 
     return retval
+
+
+def get_status(module, url, sleep=10, tries=1, status_name="ready"):
+    _ready = False
+    attempt = 0
+    while attempt <= tries:
+        get, content = api_req(
+            module,
+            url=url,
+            method='GET',
+            auth=module.params['token']
+        )
+
+        if get['check']:
+            try:
+                if get['json']['status'][status_name]:
+                    _ready = True
+            except KeyError:
+                g.mod_returns.update(msg="status not found")
+                _ready = False
+
+        # Dont sleep on last attempt
+        if attempt != tries:
+            time.sleep(sleep)
+        attempt += 1
+
+    g.mod_returns.update(ready=_ready)
+
+    return _ready
 
 
 def clusterid_by_name(module):
@@ -319,7 +349,7 @@ def v1_diff_object(module, url, id, config):
             # mc doesn't exist
             if module.params['state'] == 'absent':
                 g.mod_returns.update(changed=False)
-                api_exit(module)
+                _action = None
 
             elif module.params['state'] == 'present':
                 g.mod_returns.update(changed=True)
@@ -432,7 +462,7 @@ def v3_diff_object(module, url, config, secrets=None):
             # mc doesn't exist
             if module.params['state'] == 'absent':
                 g.mod_returns.update(changed=False)
-                api_exit(module)
+                _action = None
 
             elif module.params['state'] == 'present':
                 g.mod_returns.update(changed=True)

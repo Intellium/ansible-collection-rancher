@@ -272,8 +272,7 @@ full_response:
 
 import json
 
-from ansible.module_utils.basic import AnsibleModule, sanitize_keys
-from ansible.module_utils._text import to_native, to_text
+from ansible.module_utils.basic import AnsibleModule
 
 from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
     import api_req, api_login, api_exit, v1_diff_object

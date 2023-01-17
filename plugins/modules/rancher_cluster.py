@@ -59,6 +59,13 @@ options:
         default: 'fleet-default'
         type: str
 
+    wait:
+        description:
+            - Wait for max number of seconds until the cluster status is ready
+            - Will check the status every 5 seconds
+        default: false
+        type: int
+
     type:
         description: Type of Cluster
         default: 'vsphere'
@@ -279,11 +286,10 @@ full_response:
 import json
 
 
-from ansible.module_utils.basic import AnsibleModule, sanitize_keys
-from ansible.module_utils._text import to_native, to_text
+from ansible.module_utils.basic import AnsibleModule
 
 from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
-    import api_req, api_login, api_exit, v1_diff_object
+    import api_req, api_login, api_exit, v1_diff_object, get_status
 import ansible_collections.intellium.rancher.plugins.module_utils.\
     rancher_globals as g
 
@@ -299,6 +305,7 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
+        wait=dict(type='int', default=0),
         type=dict(type='str', default="vsphere", choices=[
             'vsphere', 'amazonec2', 'azure', 'digitalocean', 'google',
             'harvester', 'linode']),
@@ -412,6 +419,9 @@ def main():
     if module._diff:
         g.mod_returns.update(diff=dict(before=do["before"], after=do["after"]))
 
+    # Get initial status
+    get_status(module, url=f"{baseurl}/{v1_id}")
+
     if module.check_mode:
         api_exit(module)
 
@@ -429,12 +439,21 @@ def main():
         # Check status code and set id and output
         if action_req['check']:
             g.mod_returns.update(changed=True)
-            api_exit(module)
+            _sleep = 5
+            _tries = module.params['wait'] // _sleep
+
+            ready = get_status(
+                module,
+                url=f"{baseurl}/{v1_id}",
+                sleep=_sleep,
+                tries=_tries)
+            if not ready:
+                g.mod_returns.update(msg="Failed waiting for cluster")
+                api_exit(module, 'fail')
         else:
             api_exit(module, 'fail')
 
-    else:
-        api_exit(module)
+    api_exit(module)
 
 
 def build_config(module):
