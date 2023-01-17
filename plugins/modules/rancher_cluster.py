@@ -165,6 +165,16 @@ options:
         description: kubernetes version
         default: "v1.24.4+rke2r1"
         type: str
+    machineGlobalConfig:
+        description: machineGlobalConfig
+        required: false
+        type: dict
+        suboptions:
+            disable:
+                description: disable
+                type: list
+                required: false
+                elements: str
     machinePools:
         description: machinePools
         required: false
@@ -245,6 +255,9 @@ EXAMPLES = r'''
         vcenter: "vcenter.example.com"
         username: "myuser"
         password: "mysecretpass"
+    machineGlobalConfig:
+        disable:
+        - "rke2-ingress-nginx"
     machinePools:
       - displayName: "masters"
         machineConfigRef:
@@ -296,6 +309,7 @@ import json
 
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils._text import to_text
 
 from ansible_collections.intellium.rancher.plugins.module_utils.rancher_api \
     import api_req, api_login, api_exit, v1_diff_object, get_status
@@ -356,6 +370,17 @@ def main():
         cni=dict(type='str', default="calico"),
         cloud_credential=dict(type='str', required=True),
         kubernetes_version=dict(type='str', default="v1.24.4+rke2r1"),
+        machineGlobalConfig=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                disable=dict(
+                    type='list',
+                    required=False,
+                    elements='str'
+                )
+            )
+        ),
         machinePools=dict(
             type='list',
             required=False,
@@ -500,9 +525,8 @@ def build_config(module):
                 "machinePools": [],
                 "machineGlobalConfig": {
                     "cni": module.params['cni'],
-                    "disable": [
-                        "rke2-ingress-nginx"  # FIXME:
-                    ],
+                    "disable":
+                        module.params['machineGlobalConfig']['disable'],
                     "disable-kube-proxy": False,
                     "etcd-expose-metrics": False,
                     "profile": None
