@@ -63,7 +63,7 @@ options:
         description:
             - Wait for max number of seconds until the cluster status is ready
             - Will check the status every 5 seconds
-        default: false
+        default: 0
         type: int
 
     type:
@@ -281,6 +281,15 @@ full_response:
     description: The full API response of the last request
     type: dict
     returned: optional
+status:
+    description: Description of status
+    type: str
+    returned: always
+ready:
+    description: status of cluster
+    type: bool
+    returned: always
+
 '''
 
 import json
@@ -420,7 +429,7 @@ def main():
         g.mod_returns.update(diff=dict(before=do["before"], after=do["after"]))
 
     # Get initial status
-    get_status(module, url=f"{baseurl}/{v1_id}")
+    get_status(module, url=f"{baseurl}/{v1_id}", state=module.params['state'])
 
     if module.check_mode:
         api_exit(module)
@@ -446,7 +455,8 @@ def main():
                 module,
                 url=f"{baseurl}/{v1_id}",
                 sleep=_sleep,
-                tries=_tries)
+                tries=_tries,
+                state=module.params['state'])
             if not ready:
                 g.mod_returns.update(msg="Failed waiting for cluster")
                 api_exit(module, 'fail')

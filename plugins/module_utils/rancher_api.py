@@ -156,7 +156,7 @@ def check_req(r, module):
     return retval
 
 
-def get_status(module, url, sleep=10, tries=1, status_name="ready"):
+def get_status(module, url, sleep=10, tries=1, state="present", status_name="ready"):
     _ready = False
     attempt = 0
     while attempt <= tries:
@@ -170,10 +170,18 @@ def get_status(module, url, sleep=10, tries=1, status_name="ready"):
         if get['check']:
             try:
                 if get['json']['status'][status_name]:
+                    g.mod_returns.update(status=f"{status_name}")
                     _ready = True
-            except KeyError:
-                g.mod_returns.update(msg="status not found")
+            except BaseException:
+                g.mod_returns.update(status="not found")
                 _ready = False
+        elif state == "absent":
+            # Not found and action was delete
+            g.mod_returns.update(status="object not found")
+            _ready = True
+            attempt = tries
+        else:
+            g.mod_returns.update(status=f"object not found and state={state}")
 
         # Dont sleep on last attempt
         if attempt != tries:
