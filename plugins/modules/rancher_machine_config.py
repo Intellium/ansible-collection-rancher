@@ -156,6 +156,11 @@ options:
                 description: vm os
                 type: str
                 default: "linux"
+            tag:
+                description: list of vSphere tags
+                type: list
+                required: false
+                elements: str
             vcenter:
                 description: vcenter server address
                 type: str
@@ -291,10 +296,10 @@ def main():
         password=dict(type='str', aliases=['rancher_password'], no_log=True),
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
+
         type=dict(type='str', required=True, choices=[
             'vsphere', 'amazonec2', 'azure', 'digitalocean', 'google',
             'harvester', 'linode']),
-        labels=dict(type='dict', required=False),
         vsphereconfig=dict(
             type='dict',
             required=False,
@@ -320,6 +325,7 @@ def main():
                 memorySize=dict(type='str', required=True),
                 network=dict(type='list', required=True, elements='str'),
                 os=dict(type='str', default="linux"),
+                tag=dict(type='list', elements='str'),
                 vcenter=dict(type='str', default=""),
                 vcenterPort=dict(type='str', default="443"),
             )
@@ -348,6 +354,8 @@ def main():
             type='dict',
             required=False,
         ),
+
+        labels=dict(type='dict', required=False),
         full_response=dict(type='bool'),
         validate_certs=dict(type='bool', default=True)
     )
@@ -419,13 +427,15 @@ def main():
 def build_config(module):
     body = {
         "apiVersion": "rke-machine-config.cattle.io/v1",
+        "boot2dockerUrl": "https://releases.rancher.com/os/latest/rancheros-vmware.iso",
         "common": {
             "labels": {}
         },
         "id": f"{module.params['namespace']}/{module.params['name']}",
         "metadata": {
             "name": module.params['name'],
-            "namespace": module.params['namespace']
+            "namespace": module.params['namespace'],
+            "labels": {}
         }
     }
 
@@ -482,6 +492,7 @@ def build_config(module):
     if module.params['labels'] is not None:
         for k, v in module.params['labels'].items():
             body["common"]["labels"][k] = v
+            body["metadata"]["labels"][k] = v
 
     return {"body": body, "api_path": api_path, "config_items": config_items}
 

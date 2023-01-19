@@ -329,6 +329,7 @@ def main():
         name=dict(type='str', required=True),
         namespace=dict(type='str', default="fleet-default"),
         wait=dict(type='int', default=0),
+
         type=dict(type='str', default="vsphere", choices=[
             'vsphere', 'amazonec2', 'azure', 'digitalocean', 'google',
             'harvester', 'linode']),
@@ -367,6 +368,7 @@ def main():
             type='dict',
             required=False,
         ),
+
         cni=dict(type='str', default="calico"),
         cloud_credential=dict(type='str', required=True),
         kubernetes_version=dict(type='str', default="v1.24.4+rke2r1"),
@@ -628,12 +630,15 @@ def build_config(module):
             i.update({
                 "cloudCredentialSecretName": module.params['cloud_credential'],
                 "displayName": item['displayName'],
-                "etcdRole": item['etcdRole'],
                 "machineConfigRef": item['machineConfigRef'],
                 "name": item['name'],
                 "quantity": item['quantity']
             })
 
+            if item['etcdRole']:
+                i.update({
+                    "etcdRole": True
+                })
             if item['controlPlaneRole']:
                 i.update({
                     "controlPlaneRole": True
