@@ -85,6 +85,11 @@ options:
         required: false
         type: dict
         suboptions:
+            boot2dockerUrl:
+                description: clone VM From template or VM
+                type: str
+                default: "https://releases.rancher.com/os/latest/"
+                            "rancheros-vmware.iso"
             cfgparam:
                 description: vSphere cfgparam
                 type: list
@@ -304,6 +309,11 @@ def main():
             type='dict',
             required=False,
             options=dict(
+                boot2dockerUrl=dict(
+                    type='str',
+                    default="https://releases.rancher.com/os/latest/"
+                            "rancheros-vmware.iso"
+                ),
                 cfgparam=dict(
                     type='list',
                     elements='str',
@@ -427,7 +437,6 @@ def main():
 def build_config(module):
     body = {
         "apiVersion": "rke-machine-config.cattle.io/v1",
-        "boot2dockerUrl": "https://releases.rancher.com/os/latest/rancheros-vmware.iso",
         "common": {
             "labels": {}
         },

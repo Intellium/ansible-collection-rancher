@@ -156,10 +156,12 @@ def check_req(r, module):
     return retval
 
 
-def get_status(module, url, sleep=10, tries=1, state="present", status_name="ready"):
+def get_status(module, url, sleep=10, retries=0, state="present",
+               status_name="ready"):
     _ready = False
     attempt = 0
-    while attempt <= tries:
+    g.mod_returns.update(status="unknown")
+    while attempt <= retries:
         get, content = api_req(
             module,
             url=url,
@@ -179,12 +181,12 @@ def get_status(module, url, sleep=10, tries=1, state="present", status_name="rea
             # Not found and action was delete
             g.mod_returns.update(status="object not found")
             _ready = True
-            attempt = tries
+            attempt = retries
         else:
             g.mod_returns.update(status=f"object not found and state={state}")
 
         # Dont sleep on last attempt
-        if attempt != tries:
+        if attempt != retries:
             time.sleep(sleep)
         attempt += 1
 
@@ -329,6 +331,8 @@ def v1_diff_object(module, url, id, config):
                     "resourceVersion": resourceVersion
                 }
             }
+            if 'labels' in getobj['metadata']:
+                _before['metadata']['labels'] = getobj['metadata']['labels']
 
             _after['metadata']['resourceVersion'] = resourceVersion
 

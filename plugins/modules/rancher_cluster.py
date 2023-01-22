@@ -182,16 +182,20 @@ options:
         elements: dict
         suboptions:
             controlPlaneRole:
-                description: controlPlaneRole
+                description:
+                    - controlPlaneRole (True / False)
+                    - define false only to change existing clusters
+                    - will cause changed notifications due to Rancher API
                 type: bool
-                default: True
             displayName:
                 description: displayName
                 type: str
             etcdRole:
-                description: etcdRole
+                description:
+                    - etcdRole (True / False)
+                    - define false only to change existing clusters
+                    - will cause changed notifications due to Rancher API
                 type: bool
-                default: True
             machineConfigRef:
                 description: machineConfigRef
                 required: false
@@ -208,9 +212,11 @@ options:
                 description: name
                 type: str
             workerRole:
-                description: workerRole
+                description:
+                    - workerRole (True / False)
+                    - define false only to change existing clusters
+                    - will cause changed notifications due to Rancher API
                 type: bool
-                default: True
             quantity:
                 description: quantity
                 type: int
@@ -388,9 +394,9 @@ def main():
             required=False,
             elements='dict',
             options=dict(
-                controlPlaneRole=dict(type='bool', default=True),
+                controlPlaneRole=dict(type='bool'),
                 displayName=dict(type='str', default=None),
-                etcdRole=dict(type='bool', default=True),
+                etcdRole=dict(type='bool'),
                 machineConfigRef=dict(
                     type='dict',
                     required=False,
@@ -400,7 +406,7 @@ def main():
                     )
                 ),
                 name=dict(type='str', default=None),
-                workerRole=dict(type='bool', default=True),
+                workerRole=dict(type='bool'),
                 quantity=dict(type='int', default="3")
             )
         ),
@@ -476,17 +482,18 @@ def main():
         if action_req['check']:
             g.mod_returns.update(changed=True)
             _sleep = 5
-            _tries = module.params['wait'] // _sleep
+            _retries = module.params['wait'] // _sleep
 
-            ready = get_status(
-                module,
-                url=f"{baseurl}/{v1_id}",
-                sleep=_sleep,
-                tries=_tries,
-                state=module.params['state'])
-            if not ready:
-                g.mod_returns.update(msg="Failed waiting for cluster")
-                api_exit(module, 'fail')
+            if module.params['wait'] is not None:
+                ready = get_status(
+                    module,
+                    url=f"{baseurl}/{v1_id}",
+                    sleep=_sleep,
+                    retries=_retries,
+                    state=module.params['state'])
+                if not ready:
+                    g.mod_returns.update(msg="Time-out waiting for cluster")
+                    api_exit(module, 'fail')
         else:
             api_exit(module, 'fail')
 
@@ -635,17 +642,17 @@ def build_config(module):
                 "quantity": item['quantity']
             })
 
-            if item['etcdRole']:
+            if item['etcdRole'] is not None:
                 i.update({
-                    "etcdRole": True
+                    "etcdRole": item['etcdRole']
                 })
-            if item['controlPlaneRole']:
+            if item['controlPlaneRole'] is not None:
                 i.update({
-                    "controlPlaneRole": True
+                    "controlPlaneRole": item['controlPlaneRole']
                 })
-            if item['workerRole']:
+            if item['workerRole'] is not None:
                 i.update({
-                    "workerRole": True
+                    "workerRole": item['workerRole']
                 })
 
             body["spec"]["rkeConfig"]["machinePools"].append(i)
