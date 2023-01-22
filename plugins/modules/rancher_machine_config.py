@@ -88,8 +88,7 @@ options:
             boot2dockerUrl:
                 description: clone VM From template or VM
                 type: str
-                default: "https://releases.rancher.com/os/latest/"
-                            "rancheros-vmware.iso"
+                default: "https://releases.rancher.com/os/latest/rancheros-vmware.iso"
             cfgparam:
                 description: vSphere cfgparam
                 type: list
