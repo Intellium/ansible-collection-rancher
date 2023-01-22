@@ -330,8 +330,10 @@ def v1_diff_object(module, url, id, config):
                     "resourceVersion": resourceVersion
                 }
             }
+
             if 'namespace' in getobj['metadata']:
-                _before['metadata']['namespace']: getobj['metadata']['namespace']
+                _before['metadata']['namespace'] = \
+                    getobj['metadata']['namespace']
 
             if 'labels' in getobj['metadata']:
                 _before['metadata']['labels'] = getobj['metadata']['labels']

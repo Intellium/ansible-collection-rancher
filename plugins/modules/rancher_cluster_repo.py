@@ -117,8 +117,14 @@ EXAMPLES = r'''
 '''
 
 RETURN = r'''
-# These are examples of possible return values,
-# and in general should use other names for return values.
+id:
+    description: The ID of the cluster
+    type: dict
+    returned: always
+output:
+    description: The complete json object
+    type: dict
+    returned: always
 full_response:
     description: The full API response of the last request
     type: dict
