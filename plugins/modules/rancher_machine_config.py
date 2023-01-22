@@ -259,8 +259,6 @@ EXAMPLES = r'''
 '''
 
 RETURN = r'''
-# These are examples of possible return values, and in general should
-# use other names for return values.
 id:
     description: The ID of the machine config
     type: dict

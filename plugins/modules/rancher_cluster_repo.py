@@ -107,8 +107,7 @@ EXAMPLES = r'''
   intellium.rancher.rancher_cluster_repo:
     state: present
     host: rancher.example.com
-    username: admin
-    password: mysecretpassword
+    token: "{{ login['token'] }}"
     cluster_name: downstream_cluster
     repo_name: "test-repo"
     repo_url: "https://test-repo.example.com"

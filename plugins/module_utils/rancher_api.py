@@ -296,7 +296,7 @@ def api_exit(module, type='normal'):
         module.exit_json(**g.mod_returns)
 
 
-def v1_diff_object(module, url, id, config):
+def v1_diff_object(module, url, id, config, annotations=None):
     # Set defaults
     _action = None
     _url = url
@@ -330,6 +330,15 @@ def v1_diff_object(module, url, id, config):
                     "resourceVersion": resourceVersion
                 }
             }
+
+            if annotations is not None:
+                _before['metadata']['annotations'] = {}
+                for item in annotations:
+                    try:
+                        _before['metadata']['annotations'][item] =\
+                            getobj['metadata']['annotations'][item]
+                    except KeyError:
+                        _before['metadata']['annotations'][item] = ""
 
             if 'namespace' in getobj['metadata']:
                 _before['metadata']['namespace'] = \
