@@ -149,7 +149,7 @@ EXAMPLES = r'''
 
 RETURN = r'''
 id:
-    description: The ID of the cluster
+    description: The ID of the namespace
     type: dict
     returned: always
 output:
