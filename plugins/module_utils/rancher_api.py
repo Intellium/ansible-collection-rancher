@@ -338,7 +338,7 @@ def v1_diff_object(module, url, id, config, annotations=None):
                         _before['metadata']['annotations'][item] =\
                             getobj['metadata']['annotations'][item]
                     except KeyError:
-                        _before['metadata']['annotations'][item] = ""
+                        g.mod_returns.update(msg="Annotation not found before")
 
             if 'namespace' in getobj['metadata']:
                 _before['metadata']['namespace'] = \
